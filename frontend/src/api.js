@@ -3,8 +3,6 @@ import axios from 'axios';
 const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
 
 const api = axios.create({ baseURL: `${BASE_URL}/api` });
-// ...
-return `${BASE_URL}/api/trips/export/excel${params ? '?' + params : ''}`;
 
 // ── Master data ──────────────────────────────────────────────
 export const getTrucks    = ()  => api.get('/trucks').then(r => r.data);
@@ -26,5 +24,5 @@ export const verifyTrip = (id)          => api.patch(`/trips/${id}/verify`).then
 
 export const getExportUrl = (filters = {}) => {
   const params = new URLSearchParams(filters).toString();
-  return `http://localhost:4000/api/trips/export/excel${params ? '?' + params : ''}`;
+  return `${BASE_URL}/api/trips/export/excel${params ? '?' + params : ''}`;
 };
