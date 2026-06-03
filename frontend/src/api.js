@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const api = axios.create({ baseURL: 'http://localhost:4000/api' });
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+
+const api = axios.create({ baseURL: `${BASE_URL}/api` });
+// ...
+return `${BASE_URL}/api/trips/export/excel${params ? '?' + params : ''}`;
 
 // ── Master data ──────────────────────────────────────────────
 export const getTrucks    = ()  => api.get('/trucks').then(r => r.data);
