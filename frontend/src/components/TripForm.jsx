@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   getTrucks,
   getSources,
@@ -17,7 +17,7 @@ const DIESEL_PRICE = 222.5;
 const initialForm = {
   truck_id: "",
   source_id: "",
-  customer_id: "",
+  customer_ids: [],
   mpp_bill_no: "",
   meter_start: "",
   meter_end: "",
@@ -31,8 +31,8 @@ const initialForm = {
   road_tax: "",
   scrap_tax: "",
   tyre_expense: "",
-  police_tax: "",      // Added field
-  phone_expense: "",   // Added field
+  police_tax: "",
+  phone_expense: "",
   freight_amount: "",
   backload_freight_amount: "",
   remarks: "",
@@ -44,6 +44,164 @@ const initialForm = {
 
 const emptyBS = { year: "", month: "", day: "" };
 
+// ── Customer Search + Tag Input ──────────────────────────────
+function CustomerSearchInput({ customers, selectedIds, onToggle }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const inputRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const wrapRef = useRef(null);
+
+  const filtered = customers.filter(
+    (c) =>
+      !selectedIds.includes(c.id) &&
+      c.name.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const select = (customer) => {
+    onToggle(customer.id);
+    setQuery("");
+    setHighlighted(0);
+    inputRef.current?.focus();
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setOpen(true);
+      setHighlighted((h) => Math.min(h + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlighted((h) => Math.max(h - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (open && filtered[highlighted]) {
+        select(filtered[highlighted]);
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      setQuery("");
+    }
+  };
+
+  const selectedCustomers = selectedIds
+    .map((id) => customers.find((c) => c.id === id))
+    .filter(Boolean);
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      {/* Selected tags */}
+      {selectedCustomers.length > 0 && (
+        <div style={styles.tagRow}>
+          {selectedCustomers.map((c, i) => (
+            <div key={c.id} style={styles.tag}>
+              {i === 0 && (
+                <span style={styles.primaryDot} title="Primary customer" />
+              )}
+              <span style={{ fontSize: 12.5 }}>{c.name}</span>
+              <button
+                type="button"
+                onClick={() => onToggle(c.id)}
+                style={styles.tagRemove}
+                title="Remove"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Search input */}
+      <div style={styles.searchWrap}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          placeholder={
+            selectedCustomers.length === 0
+              ? "Type to search customers…"
+              : "Add another customer…"
+          }
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+            setHighlighted(0);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+          style={styles.input}
+          autoComplete="off"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              inputRef.current?.focus();
+            }}
+            style={styles.clearBtn}
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      {/* Dropdown */}
+      {open && (
+        <div ref={dropdownRef} style={styles.dropdown}>
+          {filtered.length === 0 ? (
+            <div style={styles.dropdownEmpty}>
+              {query
+                ? `No customer matching "${query}"`
+                : selectedIds.length === customers.length
+                  ? "All customers selected"
+                  : "Start typing to search…"}
+            </div>
+          ) : (
+            filtered.map((c, i) => (
+              <div
+                key={c.id}
+                onMouseDown={(e) => {
+                  e.preventDefault(); // prevent blur before click fires
+                  select(c);
+                }}
+                onMouseEnter={() => setHighlighted(i)}
+                style={{
+                  ...styles.dropdownItem,
+                  background: i === highlighted ? "#e8f0fe" : "#fff",
+                  fontWeight: i === highlighted ? 600 : 400,
+                }}
+              >
+                <span style={{ fontSize: 13 }}>{c.name}</span>
+                {c.destination_address && (
+                  <span style={styles.dropdownSub}>
+                    {c.destination_address.trim()}
+                  </span>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Form ────────────────────────────────────────────────
 export default function TripForm({ onSuccess }) {
   const [form, setForm] = useState(initialForm);
   const [startBS, setStartBS] = useState(emptyBS);
@@ -54,9 +212,10 @@ export default function TripForm({ onSuccess }) {
   const [sources, setSources] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [selectedTruck, setSelectedTruck] = useState(null);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [backloads, setBackloads] = useState([]);
+
+  const topRef = useRef(null);
 
   const startAD = bsToADString(startBS.year, startBS.month, startBS.day);
   const endAD = bsToADString(endBS.year, endBS.month, endBS.day);
@@ -72,7 +231,7 @@ export default function TripForm({ onSuccess }) {
   const fooding = numDays ? numDays * FOODING_RATE : 0;
   const tripBhatta = startAD && endAD ? BHATTA_RATE : 0;
 
-  // ── Odometer → distance ──────────────────────────────────────
+  // ── Odometer ─────────────────────────────────────────────────
   const meterStart = parseFloat(form.meter_start) || null;
   const meterEnd = parseFloat(form.meter_end) || null;
   const distanceKm =
@@ -80,7 +239,7 @@ export default function TripForm({ onSuccess }) {
       ? parseFloat((meterEnd - meterStart).toFixed(2))
       : null;
 
-  // ── Diesel needed (distance / truck avg) ─────────────────────
+  // ── Diesel ───────────────────────────────────────────────────
   const truckAvg = selectedTruck?.avg_kmpl
     ? parseFloat(selectedTruck.avg_kmpl)
     : null;
@@ -96,7 +255,7 @@ export default function TripForm({ onSuccess }) {
       ? parseFloat((dieselNeeded - parseFloat(form.diesel_used)).toFixed(2))
       : null;
 
-  // ── Total expenses ────────────────────────────────────────────
+  // ── Expenses ─────────────────────────────────────────────────
   const n = (k) => parseFloat(form[k]) || 0;
   const effectiveBhatta =
     form.trip_bhatta_override !== ""
@@ -115,11 +274,12 @@ export default function TripForm({ onSuccess }) {
     n("road_tax") +
     n("scrap_tax") +
     n("tyre_expense") +
-    n("police_tax") +       // Added to sum calculation
-    n("phone_expense");     // Added to sum calculation
+    n("police_tax") +
+    n("phone_expense");
 
   const totalCashExpense = totalExpenses - (dieselCost || 0);
 
+  // ── Backload ─────────────────────────────────────────────────
   const backloadStartAD = bsToADString(
     backloadStartBS.year,
     backloadStartBS.month,
@@ -145,7 +305,6 @@ export default function TripForm({ onSuccess }) {
     form.backload_fooding !== ""
       ? parseFloat(form.backload_fooding) || 0
       : backloadFoodingAuto;
-
   const effectiveBackloadBhatta =
     form.backload_bhatta !== ""
       ? parseFloat(form.backload_bhatta) || 0
@@ -186,6 +345,12 @@ export default function TripForm({ onSuccess }) {
       ? (surplus || 0) + (backloadSurplus || 0)
       : null;
 
+  // ── Selected customers (derived) ─────────────────────────────
+  const selectedCustomers = (form.customer_ids || [])
+    .map((id) => customers.find((c) => c.id === id))
+    .filter(Boolean);
+  const firstCustomer = selectedCustomers[0] || null;
+
   // ── Load master data ─────────────────────────────────────────
   useEffect(() => {
     getTrucks().then(setTrucks);
@@ -200,23 +365,36 @@ export default function TripForm({ onSuccess }) {
     );
   }, [form.truck_id, trucks]);
 
+  // Auto-fill freight from first customer
   useEffect(() => {
-    const c =
-      customers.find((c) => c.id === parseInt(form.customer_id)) || null;
-    setSelectedCustomer(c);
-    if (c?.freight_actual) {
-      setForm((prev) => ({ ...prev, freight_amount: c.freight_actual }));
+    if (firstCustomer?.freight_actual) {
+      setForm((prev) => ({
+        ...prev,
+        freight_amount: firstCustomer.freight_actual,
+      }));
     }
-  }, [form.customer_id, customers]);
+  }, [form.customer_ids[0]]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const toggleCustomer = (id) => {
+    // id arrives as a number from CustomerSearchInput
+    setForm((prev) => {
+      const existing = prev.customer_ids || [];
+      if (existing.includes(id)) {
+        return { ...prev, customer_ids: existing.filter((x) => x !== id) };
+      } else {
+        return { ...prev, customer_ids: [...existing, id] };
+      }
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.truck_id || !form.source_id || !form.customer_id) {
+    if (!form.truck_id || !form.source_id || !form.customer_ids.length) {
       toast.error("Please fill all required fields.");
       return;
     }
@@ -228,14 +406,16 @@ export default function TripForm({ onSuccess }) {
     try {
       await createTrip({
         ...form,
+        customer_id: form.customer_ids[0],
+        customer_ids: form.customer_ids,
         start_date: startAD,
         end_date: endAD || null,
         distance_km: distanceKm,
         diesel_needed: dieselNeeded,
         diesel_cost: dieselCost,
         trip_bhatta: effectiveBhatta,
-        police_tax: n("police_tax") || null,         // Passed payload entry
-        phone_expense: n("phone_expense") || null,   // Passed payload entry
+        police_tax: n("police_tax") || null,
+        phone_expense: n("phone_expense") || null,
         loading_unloading: n("loading_amount") + n("unloading_amount") || null,
         backload_supplier_id: form.backload_id || null,
         backload_bill_no: form.backload_bill_no || null,
@@ -253,6 +433,7 @@ export default function TripForm({ onSuccess }) {
       setBackloadStartBS(emptyBS);
       setBackloadEndBS(emptyBS);
       onSuccess?.();
+      topRef.current?.scrollIntoView({ behavior: "smooth" });
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to save trip.");
     } finally {
@@ -260,7 +441,7 @@ export default function TripForm({ onSuccess }) {
     }
   };
 
-  const fmt = (n) => (n != null ? `NPR ${Number(n).toLocaleString()}` : "—");
+  const fmt = (v) => (v != null ? `NPR ${Number(v).toLocaleString()}` : "—");
   const handleEnter = (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -280,6 +461,7 @@ export default function TripForm({ onSuccess }) {
         if (e.key === "Enter") e.preventDefault();
       }}
     >
+      <div ref={topRef} />
       <h2 style={styles.heading}>New Trip Entry</h2>
 
       {/* ── 1. Truck ── */}
@@ -344,7 +526,7 @@ export default function TripForm({ onSuccess }) {
         </Field>
       </Section>
 
-      {/* ── 3. Trip Dates & Customer ── */}
+      {/* ── 3. Trip Details ── */}
       <Section title="3. Trip Details">
         <Row>
           <NepaliDatePicker
@@ -370,31 +552,67 @@ export default function TripForm({ onSuccess }) {
             &nbsp;({formatBS(startBS)} → {formatBS(endBS)})
           </InfoBox>
         )}
-        <Field label="Customer (Destination) *">
-          <select
-            name="customer_id"
-            value={form.customer_id}
-            onChange={handleChange}
-            style={styles.input}
-            required
-            onKeyDown={handleEnter}
-          >
-            <option value="">Select customer</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+
+        {/* Customer search + tag input */}
+        <Field label="Customer(s) (Destination) *">
+          <CustomerSearchInput
+            customers={customers}
+            selectedIds={form.customer_ids}
+            onToggle={toggleCustomer}
+          />
+          {selectedCustomers.length === 0 && (
+            <span style={{ fontSize: 11, color: "#e07000", marginTop: 4 }}>
+              Search and select one or more customers
+            </span>
+          )}
         </Field>
-        {selectedCustomer && (
-          <InfoBox>
-            <b>Destination:</b>{" "}
-            {selectedCustomer.destination_address?.trim() ||
-              "⚠ Address not set"}
-            &nbsp;&nbsp;
-            <b>Freight Rate:</b> {fmt(selectedCustomer.freight_actual)}
+
+        {/* Info rows for each selected customer */}
+        {selectedCustomers.map((c, i) => (
+          <InfoBox
+            key={c.id}
+            color={i === 0 ? "#e8f5e9" : "#f5f5f5"}
+            border={i === 0 ? "#a5d6a7" : "#d0d0d0"}
+          >
+            <b>
+              {i === 0 ? "🥇 Primary" : `#${i + 1}`}: {c.name}
+            </b>
+            &nbsp;— {c.destination_address?.trim() || "⚠ Address not set"}
+            &nbsp;&nbsp;<b>Freight Rate:</b> {fmt(c.freight_actual)}
+            {i === 0 && (
+              <span style={{ fontSize: 11, color: "#2a6098", marginLeft: 8 }}>
+                (auto-fills freight below)
+              </span>
+            )}
           </InfoBox>
+        ))}
+
+        {/* Freight amount — shown once a customer is selected */}
+        {selectedCustomers.length > 0 && (
+          <Field label="Freight Amount (NPR)">
+            <input
+              type="number"
+              name="freight_amount"
+              value={form.freight_amount}
+              onChange={handleChange}
+              onKeyDown={handleEnter}
+              style={styles.input}
+              placeholder="e.g. 30000"
+            />
+            {firstCustomer?.freight_actual && (
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "#2a6098",
+                  marginTop: 3,
+                  fontStyle: "italic",
+                }}
+              >
+                Rate from DB: NPR{" "}
+                {Number(firstCustomer.freight_actual).toLocaleString()}
+              </span>
+            )}
+          </Field>
         )}
       </Section>
 
@@ -413,7 +631,7 @@ export default function TripForm({ onSuccess }) {
         </Field>
       </Section>
 
-      {/* ── 5. Odometer & Distance ── */}
+      {/* ── 5. Odometer ── */}
       <Section title="5. Odometer Readings">
         <Row>
           <Field label="Starting KM (Meter Start)">
@@ -535,7 +753,7 @@ export default function TripForm({ onSuccess }) {
               style={styles.readOnly}
             />
           </Field>
-          <Field label={`Trip Bhatta (NPR ${BHATTA_RATE}/day)`}>
+          <Field label={`Trip Bhatta (NPR ${BHATTA_RATE}/trip)`}>
             <input
               type="number"
               name="trip_bhatta_override"
@@ -658,7 +876,6 @@ export default function TripForm({ onSuccess }) {
             />
           </Field>
         </Row>
-        {/* Row added for Police Tax and Phone Expenses */}
         <Row>
           <Field label="Police Tax (NPR)">
             <input
@@ -717,7 +934,6 @@ export default function TripForm({ onSuccess }) {
                 placeholder="e.g. BL-221"
               />
             </Field>
-
             <Row>
               <NepaliDatePicker
                 label="Backload Start Date (Optional)"
@@ -732,7 +948,6 @@ export default function TripForm({ onSuccess }) {
                 onKeyDown={handleEnter}
               />
             </Row>
-
             {backloadDays && (
               <InfoBox color="#e8f5e9" border="#a5d6a7">
                 🗓 Backload duration:{" "}
@@ -741,7 +956,6 @@ export default function TripForm({ onSuccess }) {
                 </b>
               </InfoBox>
             )}
-
             <Row>
               <Field label="Backload Freight (NPR)">
                 <input
@@ -754,7 +968,7 @@ export default function TripForm({ onSuccess }) {
                   placeholder="e.g. 15000"
                 />
               </Field>
-              <Field label="Backload Loading / Offloading (NPR)">
+              <Field label="Backload Loading (NPR)">
                 <input
                   type="number"
                   name="backload_loading_amount"
@@ -777,7 +991,6 @@ export default function TripForm({ onSuccess }) {
                 />
               </Field>
             </Row>
-
             <Row>
               <Field
                 label={`Backload Fooding — Auto (${FOODING_RATE}/day)`}
@@ -815,7 +1028,6 @@ export default function TripForm({ onSuccess }) {
                 />
               </Field>
             </Row>
-
             <InfoBox color="#f0f6ff" border="#a8c0e8">
               <b>Backload Cash Expense:</b> {fmt(backloadCashExpense)}
               &nbsp;&nbsp;
@@ -831,32 +1043,6 @@ export default function TripForm({ onSuccess }) {
 
       {/* ── 12. Summary ── */}
       <Section title="12. Summary">
-        <Field label="Freight Amount (NPR) ">
-          <input
-            type="number"
-            name="freight_amount"
-            value={form.freight_amount}
-            onKeyDown={handleEnter}
-            onChange={handleChange}
-            style={styles.input}
-            placeholder="e.g. 30000"
-          />
-          {selectedCustomer?.freight_actual && (
-            <span
-              style={{
-                fontSize: 11,
-                color: "#2a6098",
-                marginTop: 3,
-                fontStyle: "italic",
-              }}
-            >
-              Rate from DB: NPR{" "}
-              {Number(selectedCustomer.freight_actual).toLocaleString()}
-            </span>
-          )}
-        </Field>
-
-        {/* Expense breakdown */}
         <div style={styles.breakdown}>
           <div style={styles.breakdownTitle}>Expense Breakdown</div>
           <div style={styles.breakdownGrid}>
@@ -897,7 +1083,6 @@ export default function TripForm({ onSuccess }) {
               style={{ ...styles.readOnly, fontWeight: "bold", fontSize: 15 }}
             />
           </Field>
-
           <Field label="Total Cash Expense — Auto">
             <input
               value={fmt(totalCashExpenseWithBackload)}
@@ -911,7 +1096,6 @@ export default function TripForm({ onSuccess }) {
               }}
             />
           </Field>
-
           <Field label="Outward Surplus — Auto">
             <input
               value={surplus != null ? fmt(surplus) : "—"}
@@ -930,6 +1114,7 @@ export default function TripForm({ onSuccess }) {
             />
           </Field>
         </Row>
+
         {form.backload_id && (
           <Row>
             <Field label="Backload Surplus — Auto">
@@ -990,7 +1175,7 @@ export default function TripForm({ onSuccess }) {
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────
+// ── Small layout helpers ─────────────────────────────────────
 function Section({ title, children }) {
   return (
     <div style={styles.section}>
@@ -1027,6 +1212,7 @@ function BLine({ label, value }) {
   );
 }
 
+// ── Styles ───────────────────────────────────────────────────
 const styles = {
   form: {
     maxWidth: 860,
@@ -1075,6 +1261,7 @@ const styles = {
     border: "1px solid #c0ccd8",
     borderRadius: 5,
     fontSize: 14,
+    width: "100%", boxSizing: "border-box"
   },
   readOnly: {
     padding: "8px 10px",
@@ -1138,5 +1325,74 @@ const styles = {
     fontWeight: 600,
     cursor: "pointer",
     marginTop: 10,
+  },
+  // CustomerSearchInput styles
+  tagRow: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 },
+  tag: {
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+    background: "#1a3a5c",
+    color: "#fff",
+    borderRadius: 20,
+    padding: "4px 10px 4px 8px",
+    fontSize: 12.5,
+  },
+  primaryDot: {
+    width: 7,
+    height: 7,
+    borderRadius: "50%",
+    background: "#ffd700",
+    flexShrink: 0,
+  },
+  tagRemove: {
+    background: "none",
+    border: "none",
+    color: "#fff",
+    cursor: "pointer",
+    fontSize: 16,
+    lineHeight: 1,
+    padding: "0 0 0 2px",
+    opacity: 0.75,
+  },
+  searchWrap: { position: "relative", display: "flex", alignItems: "center" , width: "100%"},
+  clearBtn: {
+    position: "absolute",
+    right: 8,
+    background: "none",
+    border: "none",
+    color: "#999",
+    cursor: "pointer",
+    fontSize: 18,
+    lineHeight: 1,
+    padding: 0,
+  },
+  dropdown: {
+    position: "absolute",
+    top: "calc(100% + 4px)",
+    left: 0,
+    right: 0,
+    background: "#fff",
+    border: "1px solid #c0ccd8",
+    borderRadius: 6,
+    boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+    zIndex: 999,
+    maxHeight: 220,
+    overflowY: "auto",
+  },
+  dropdownItem: {
+    padding: "9px 12px",
+    cursor: "pointer",
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    borderBottom: "1px solid #f0f4f8",
+  },
+  dropdownSub: { fontSize: 11, color: "#888" },
+  dropdownEmpty: {
+    padding: "10px 12px",
+    fontSize: 12.5,
+    color: "#aaa",
+    textAlign: "center",
   },
 };
