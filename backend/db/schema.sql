@@ -91,3 +91,6 @@ CREATE TABLE IF NOT EXISTS trips (
 CREATE INDEX IF NOT EXISTS idx_trips_truck ON trips(truck_id);
 CREATE INDEX IF NOT EXISTS idx_trips_start_date ON trips(start_date);
 CREATE INDEX IF NOT EXISTS idx_trips_status ON trips(status);
+
+-- Add avg_kmpl to trucks if not exists
+ALTER TABLE trucks ADD COLUMN IF NOT EXISTS avg_kmpl DECIMAL(10,2);

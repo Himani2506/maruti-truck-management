@@ -4,7 +4,6 @@ require('dotenv').config();
 
 const masterRoutes = require('./routes/master');
 const tripsRoutes  = require('./routes/trips');
-const mapsRoutes   = require('./routes/maps');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
@@ -15,7 +14,6 @@ app.use(express.json());
 // Routes
 app.use('/api', masterRoutes);   // trucks, sources, customers, backloads
 app.use('/api/trips', tripsRoutes);
-app.use('/api', mapsRoutes);      // /api/distance
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date() }));

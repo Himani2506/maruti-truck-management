@@ -36,14 +36,22 @@ function calcTotals(fields) {
 // GET all trips
 router.get("/", async (req, res) => {
   try {
-    const { truck_id, customer_id, source_id, status, from_date, to_date } = req.query;
+
+    console.log("=== NEW TRIP ===");
+    console.log("customer_id:", req.body.customer_id);
+    console.log("customer_ids:", req.body.customer_ids);
+    console.log("================");
+    const { truck_id, customer_id, source_id, status, from_date, to_date, backload_supplier_id } = req.query;
     const conditions = []; const values = []; let idx = 1;
-    if (truck_id)    { conditions.push(`t.truck_id    = $${idx++}`); values.push(truck_id); }
-    if (customer_id) { conditions.push(`t.customer_id = $${idx++}`); values.push(customer_id); }
-    if (source_id)   { conditions.push(`t.source_id   = $${idx++}`); values.push(source_id); }
-    if (status)      { conditions.push(`t.status      = $${idx++}`); values.push(status); }
-    if (from_date)   { conditions.push(`t.start_date >= $${idx++}`); values.push(from_date); }
-    if (to_date)     { conditions.push(`t.start_date <= $${idx++}`); values.push(to_date); }
+    if (truck_id)             { conditions.push(`t.truck_id             = $${idx++}`); values.push(truck_id); }
+    if (customer_id)          { conditions.push(`t.customer_id          = $${idx++}`); values.push(customer_id); }
+    if (source_id)            { conditions.push(`t.source_id            = $${idx++}`); values.push(source_id); }
+    if (status)               { conditions.push(`t.status               = $${idx++}`); values.push(status); }
+    if (from_date)            { conditions.push(`t.start_date          >= $${idx++}`); values.push(from_date); }
+    if (to_date)              { conditions.push(`t.start_date          <= $${idx++}`); values.push(to_date); }
+    
+    if (backload_supplier_id) { conditions.push(`t.backload_supplier_id = $${idx++}`); values.push(parseInt(backload_supplier_id, 10)); }
+
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
     const result = await pool.query(`
@@ -51,15 +59,22 @@ router.get("/", async (req, res) => {
         tr.truck_number, tr.driver_name, tr.avg_kmpl AS truck_avg_kmpl,
         s.name  AS source_name,
         c.name  AS customer_name, c.destination_address,
-        b.description AS backload_description
+        b.description AS backload_description,
+        COALESCE((
+          SELECT json_agg(json_build_object('id', tc2.customer_id, 'name', c2.name))
+          FROM trip_customers tc2
+          JOIN customers c2 ON tc2.customer_id = c2.id
+          WHERE tc2.trip_id = t.id AND tc2.customer_id != t.customer_id
+        ), '[]') AS extra_customers
       FROM trips t
-      LEFT JOIN trucks    tr ON t.truck_id    = tr.id
-      LEFT JOIN sources   s  ON t.source_id   = s.id
-      LEFT JOIN customers c  ON t.customer_id = c.id
+      LEFT JOIN trucks    tr ON t.truck_id             = tr.id
+      LEFT JOIN sources   s  ON t.source_id            = s.id
+      LEFT JOIN customers c  ON t.customer_id          = c.id
       LEFT JOIN backloads b  ON t.backload_supplier_id = b.id
       ${where}
       ORDER BY t.start_date DESC, t.id DESC
     `, values);
+    console.log("Returned rows:", result.rows.length);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -73,11 +88,17 @@ router.get("/:id", async (req, res) => {
       SELECT t.*, tr.truck_number, tr.driver_name, tr.avg_kmpl AS truck_avg_kmpl,
              s.name AS source_name,
              c.name AS customer_name, c.destination_address,
-             b.description AS backload_description
+             b.description AS backload_description,
+             COALESCE((
+               SELECT json_agg(json_build_object('id', tc2.customer_id, 'name', c2.name))
+               FROM trip_customers tc2
+               JOIN customers c2 ON tc2.customer_id = c2.id
+               WHERE tc2.trip_id = t.id AND tc2.customer_id != t.customer_id
+             ), '[]') AS extra_customers
       FROM trips t
-      LEFT JOIN trucks    tr ON t.truck_id    = tr.id
-      LEFT JOIN sources   s  ON t.source_id   = s.id
-      LEFT JOIN customers c  ON t.customer_id = c.id
+      LEFT JOIN trucks    tr ON t.truck_id             = tr.id
+      LEFT JOIN sources   s  ON t.source_id            = s.id
+      LEFT JOIN customers c  ON t.customer_id          = c.id
       LEFT JOIN backloads b  ON t.backload_supplier_id = b.id
       WHERE t.id = $1`, [req.params.id]);
     if (!result.rows.length) return res.status(404).json({ error: "Trip not found" });
@@ -89,9 +110,10 @@ router.get("/:id", async (req, res) => {
 
 // POST create trip
 router.post("/", async (req, res) => {
+  console.log("=== TRIP POST ===", req.body.customer_id, req.body.customer_ids);
   try {
     const {
-      truck_id, source_id, customer_id,
+      truck_id, source_id, customer_id, customer_ids,
       start_date, end_date, mpp_bill_no,
       meter_start, meter_end,
       diesel_used,
@@ -110,6 +132,8 @@ router.post("/", async (req, res) => {
       ? parseFloat((me_val - ms_val).toFixed(2)) : null;
 
     let truck_avg = null;
+
+
     if (truck_id) {
       const tr = await pool.query("SELECT avg_kmpl FROM trucks WHERE id=$1", [truck_id]);
       if (tr.rows.length) truck_avg = parseFloat(tr.rows[0].avg_kmpl) || null;
@@ -121,6 +145,7 @@ router.post("/", async (req, res) => {
       ? parseFloat((parseFloat(diesel_used) * DIESEL_PRICE).toFixed(2)) : null;
 
     let num_days = null, fooding = null, trip_bhatta = null;
+
     if (start_date && end_date) {
       const ms = new Date(end_date) - new Date(start_date);
       num_days = Math.ceil(ms / (1000 * 60 * 60 * 24)) + 1;
@@ -136,10 +161,12 @@ router.post("/", async (req, res) => {
     });
 
     const totalFreight = (parseFloat(freight_amount) || 0) + (parseFloat(backload_freight_amount) || 0);
-    const surplus = freight_amount
+
+    const surplus = totalFreight
       ? parseFloat((totalFreight - total_expenses).toFixed(2)) : null;
 
     const status = end_date ? "completed" : "open";
+
     const loading_unloading = (parseFloat(loading_amount) || 0) + (parseFloat(unloading_amount) || 0) || null;
 
     const result = await pool.query(`
@@ -189,6 +216,20 @@ router.post("/", async (req, res) => {
         status, remarks || null,
       ]
     );
+
+    const tripId = result.rows[0].id;
+
+    // FIX 3: insert all extra customers into trip_customers junction table
+    if (Array.isArray(customer_ids) && customer_ids.length > 1) {
+      const extras = customer_ids.filter(id => parseInt(id) !== parseInt(customer_id));
+      for (const cid of extras) {
+        await pool.query(
+          `INSERT INTO trip_customers (trip_id, customer_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [tripId, cid]
+        );
+      }
+    }
+
     res.status(201).json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -289,6 +330,19 @@ router.patch("/:id", async (req, res) => {
         req.params.id,
       ]
     );
+
+    // Update extra customers if provided
+    if (Array.isArray(u.customer_ids)) {
+      await pool.query(`DELETE FROM trip_customers WHERE trip_id = $1 AND customer_id != $2`, [req.params.id, u.customer_id]);
+      const extras = u.customer_ids.filter(id => parseInt(id) !== parseInt(u.customer_id));
+      for (const cid of extras) {
+        await pool.query(
+          `INSERT INTO trip_customers (trip_id, customer_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [req.params.id, cid]
+        );
+      }
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -311,13 +365,14 @@ router.patch("/:id/verify", async (req, res) => {
 // GET export to Excel
 router.get("/export/excel", async (req, res) => {
   try {
-    const { truck_id, customer_id, source_id, from_date, to_date } = req.query;
+    const { truck_id, customer_id, source_id, from_date, to_date, backload_supplier_id } = req.query;
     const conditions = []; const values = []; let idx = 1;
-    if (truck_id)    { conditions.push(`t.truck_id    = $${idx++}`); values.push(truck_id); }
-    if (customer_id) { conditions.push(`t.customer_id = $${idx++}`); values.push(customer_id); }
-    if (source_id)   { conditions.push(`t.source_id   = $${idx++}`); values.push(source_id); }
-    if (from_date)   { conditions.push(`t.start_date >= $${idx++}`); values.push(from_date); }
-    if (to_date)     { conditions.push(`t.start_date <= $${idx++}`); values.push(to_date); }
+    if (truck_id)             { conditions.push(`t.truck_id             = $${idx++}`); values.push(truck_id); }
+    if (customer_id)          { conditions.push(`t.customer_id          = $${idx++}`); values.push(customer_id); }
+    if (source_id)            { conditions.push(`t.source_id            = $${idx++}`); values.push(source_id); }
+    if (from_date)            { conditions.push(`t.start_date          >= $${idx++}`); values.push(from_date); }
+    if (to_date)              { conditions.push(`t.start_date          <= $${idx++}`); values.push(to_date); }
+    if (backload_supplier_id) { conditions.push(`t.backload_supplier_id = $${idx++}`); values.push(backload_supplier_id); }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
     const result = await pool.query(`
@@ -325,9 +380,9 @@ router.get("/export/excel", async (req, res) => {
              s.name AS source_name, c.name AS customer_name,
              c.destination_address, b.description AS backload_description
       FROM trips t
-      LEFT JOIN trucks    tr ON t.truck_id    = tr.id
-      LEFT JOIN sources   s  ON t.source_id   = s.id
-      LEFT JOIN customers c  ON t.customer_id = c.id
+      LEFT JOIN trucks    tr ON t.truck_id             = tr.id
+      LEFT JOIN sources   s  ON t.source_id            = s.id
+      LEFT JOIN customers c  ON t.customer_id          = c.id
       LEFT JOIN backloads b  ON t.backload_supplier_id = b.id
       ${where}
       ORDER BY tr.truck_number, t.start_date`, values);
@@ -383,6 +438,7 @@ router.get("/export/excel", async (req, res) => {
 
     Object.keys(truckGroups).sort().forEach((truckNumber) => {
       const ws = wb.addWorksheet(`Truck ${truckNumber}`);
+
       ws.columns = columns;
 
       const hr = ws.getRow(1);

@@ -74,10 +74,6 @@ router.patch('/customers/:id', async (req, res) => {
 
 module.exports = router;
 
-// ── SETTINGS (rates stored in DB) ────────────────────────────
-// First run this SQL once:
-// CREATE TABLE IF NOT EXISTS settings (key VARCHAR(50) PRIMARY KEY, value DECIMAL(10,4));
-// INSERT INTO settings VALUES ('diesel_rate',222.5),('fooding_rate',1000),('bhatta_rate',1500),('freight_multiplier',1.3) ON CONFLICT DO NOTHING;
 
 router.get('/settings', async (req, res) => {
   try {

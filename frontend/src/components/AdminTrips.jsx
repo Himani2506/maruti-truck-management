@@ -87,39 +87,64 @@ export default function AdminTrips({ onEdit }) {
   const [loading, setLoading] = useState(true);
   const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE);
   const [showColPicker, setShowColPicker] = useState(false);
+  const [customerPopup, setCustomerPopup] = useState(null);
   const [filters, setFilters] = useState({
     truck_id: "",
     status: "",
     from_date: "",
     to_date: "",
     customer_id: "",
-    backload_id: "",
+    backload_supplier_id: "",
   });
 
   const load = async () => {
     setLoading(true);
     try {
-      const backendFilters = Object.fromEntries(
-        Object.entries(filters).filter(
-          ([k, v]) =>
-            v &&
-            [
-              "truck_id",
-              "customer_id",
-              "status",
-              "from_date",
-              "to_date",
-            ].includes(k),
-        ),
-      );
-      let data = await getTrips(backendFilters);
-      if (filters.backload_id) {
-        data = data.filter(
-          (t) => String(t.backload_id) === String(filters.backload_id),
+      const backendFilters = {
+        truck_id: filters.truck_id,
+        customer_id: filters.customer_id,
+        status: filters.status,
+        backload_supplier_id: filters.backload_supplier_id,
+      };
+
+      // 1. Convert From Date
+      if (
+        filters.from_date?.year &&
+        filters.from_date?.month &&
+        filters.from_date?.day
+      ) {
+        // If bsToADString takes (year, month, day):
+        backendFilters.from_date = bsToADString(
+          Number(filters.from_date.year),
+          Number(filters.from_date.month),
+          Number(filters.from_date.day),
+        );
+
+        // ALTERNATIVE: If your utility expects a string like "2083-04-15", uncomment below:
+        // const bsStr = `${filters.from_date.year}-${String(filters.from_date.month).padStart(2, '0')}-${String(filters.from_date.day).padStart(2, '0')}`;
+        // backendFilters.from_date = bsToADString(bsStr);
+      }
+
+      // 2. Convert To Date
+      if (
+        filters.to_date?.year &&
+        filters.to_date?.month &&
+        filters.to_date?.day
+      ) {
+        backendFilters.to_date = bsToADString(
+          Number(filters.to_date.year),
+          Number(filters.to_date.month),
+          Number(filters.to_date.day),
         );
       }
+
+      const cleanFilters = Object.fromEntries(
+        Object.entries(backendFilters).filter(([, v]) => v),
+      );
+
+      let data = await getTrips(cleanFilters);
       setTrips(data);
-    } catch {
+    } catch (error) {
       toast.error("Failed to load trips");
     } finally {
       setLoading(false);
@@ -144,8 +169,18 @@ export default function AdminTrips({ onEdit }) {
       from_date: "",
       to_date: "",
       customer_id: "",
-      backload_id: "",
+      backload_supplier_id: "",
     });
+  useEffect(() => {
+    load();
+  }, [
+    filters.truck_id,
+    filters.status,
+    filters.from_date,
+    filters.to_date,
+    filters.customer_id,
+    filters.backload_supplier_id,
+  ]);
   const toggleCol = (key) =>
     setVisibleCols((prev) => {
       const next = new Set(prev);
@@ -205,12 +240,65 @@ export default function AdminTrips({ onEdit }) {
             {t.source_name}
           </span>
         );
-      case "customer_name":
+      case "customer_name": {
+        let extras = [];
+        try {
+          const raw = t.extra_customers;
+          const arr = Array.isArray(raw)
+            ? raw
+            : typeof raw === "string"
+              ? JSON.parse(raw)
+              : [];
+          extras = arr.filter((x) => x && x.name);
+        } catch {
+          extras = [];
+        }
+        const allNames = [t.customer_name, ...extras.map((c) => c.name)].filter(
+          Boolean,
+        );
         return (
-          <span title={t.customer_name} style={styles.ellipsis}>
-            {t.customer_name}
+          <span title={allNames.join(", ")} style={styles.ellipsis}>
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {t.customer_name}
+            </span>
+            {extras.length > 0 && (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCustomerPopup(
+                    customerPopup?.id === t.id
+                      ? null
+                      : {
+                          id: t.id,
+                          names: allNames,
+                          x: e.clientX,
+                          y: e.clientY,
+                        },
+                  );
+                }}
+                style={{
+                  fontSize: 10,
+                  background: "#1a3a5c",
+                  color: "#fff",
+                  borderRadius: 10,
+                  padding: "1px 6px",
+                  flexShrink: 0,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                +{extras.length}
+              </span>
+            )}
           </span>
         );
+      }
       case "start_date":
         return t.start_date ? formatBSShort(adToBS(t.start_date)) : "—";
       case "end_date":
@@ -437,8 +525,8 @@ export default function AdminTrips({ onEdit }) {
           </FilterGroup>
           <FilterGroup label="Backload Supplier">
             <select
-              name="backload_id"
-              value={filters.backload_id}
+              name="backload_supplier_id"
+              value={filters.backload_supplier_id}
               onChange={handleFilter}
               style={styles.filterInput}
             >
@@ -463,7 +551,7 @@ export default function AdminTrips({ onEdit }) {
               <option value="verified">Verified</option>
             </select>
           </FilterGroup>
-          <FilterGroup label="From Date (AD)">
+          <FilterGroup label="From Date (BS)">
             <input
               type="date"
               name="from_date"
@@ -472,7 +560,7 @@ export default function AdminTrips({ onEdit }) {
               style={styles.filterInput}
             />
           </FilterGroup>
-          <FilterGroup label="To Date (AD)">
+          <FilterGroup label="To Date (BS)">
             <input
               type="date"
               name="to_date"
@@ -580,6 +668,76 @@ export default function AdminTrips({ onEdit }) {
               </tr>
             </tfoot>
           </table>
+        </div>
+      )}
+      {customerPopup && (
+        <div
+          onClick={() => setCustomerPopup(null)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 998,
+          }}
+        />
+      )}
+      {customerPopup && (
+        <div
+          style={{
+            position: "fixed",
+            top: customerPopup.y + 8,
+            left: customerPopup.x,
+            background: "#fff",
+            border: "1px solid #c0ccd8",
+            borderRadius: 8,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+            zIndex: 999,
+            padding: "10px 14px",
+            minWidth: 220,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: "#1a3a5c",
+              marginBottom: 8,
+              textTransform: "uppercase",
+            }}
+          >
+            All Customers ({customerPopup.names.length})
+          </div>
+          {customerPopup.names.map((name, i) => (
+            <div
+              key={i}
+              style={{
+                fontSize: 13,
+                padding: "4px 0",
+                borderBottom: "1px dashed #e8eef4",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              {i === 0 && (
+                <span
+                  style={{
+                    fontSize: 9,
+                    background: "#ffd700",
+                    color: "#333",
+                    borderRadius: 8,
+                    padding: "1px 5px",
+                    fontWeight: 700,
+                  }}
+                >
+                  PRIMARY
+                </span>
+              )}
+              {name}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -785,10 +943,10 @@ const styles = {
     fontWeight: 700,
   },
   ellipsis: {
-    display: "block",
-    maxWidth: 150,
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    maxWidth: 180,
     overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
   },
 };
