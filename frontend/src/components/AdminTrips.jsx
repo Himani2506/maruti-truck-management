@@ -490,80 +490,100 @@ export default function AdminTrips({ onEdit }) {
           </div>
         </div>
       )}
-
-      {/* ── Filters ── */}
-      <div style={styles.filterBox}>
-        <div style={styles.filterRow}>
-          <FilterGroup label="Truck">
-            <select
-              name="truck_id"
-              value={filters.truck_id}
-              onChange={handleFilter}
-              style={styles.filterInput}
+      <div style={styles.filterRow}>
+        {/* ── Filters ── */}
+        <div style={styles.filterBox}>
+          <div style={styles.filterRow}>
+            <FilterGroup label="Truck">
+              <select
+                name="truck_id"
+                value={filters.truck_id}
+                onChange={handleFilter}
+                style={styles.filterInput}
+              >
+                <option value="">All Trucks</option>
+                {trucks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.truck_number} — {t.driver_name || "—"}
+                  </option>
+                ))}
+              </select>
+            </FilterGroup>
+            <FilterGroup label="Customer">
+              <select
+                name="customer_id"
+                value={filters.customer_id}
+                onChange={handleFilter}
+                style={styles.filterInput}
+              >
+                <option value="">All Customers</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </FilterGroup>
+            <FilterGroup label="Backload Supplier">
+              <select
+                name="backload_supplier_id"
+                value={filters.backload_supplier_id}
+                onChange={handleFilter}
+                style={styles.filterInput}
+              >
+                <option value="">All Suppliers</option>
+                {backloads.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.description}
+                  </option>
+                ))}
+              </select>
+            </FilterGroup>
+            <FilterGroup label="Status">
+              <select
+                name="status"
+                value={filters.status}
+                onChange={handleFilter}
+                style={styles.filterInput}
+              >
+                <option value="">All</option>
+                <option value="open">Open</option>
+                <option value="completed">Completed</option>
+                <option value="verified">Verified</option>
+              </select>
+            </FilterGroup>
+          </div>
+          <div style={{ ...styles.filterRow, marginTop: 10 }}>
+            <FilterGroup label="From Date (BS)">
+              <NepaliDatePicker
+                value={filters.from_date || { year: "", month: "", day: "" }}
+                onChange={(bs) => setFilters((f) => ({ ...f, from_date: bs }))}
+              />
+            </FilterGroup>
+            <FilterGroup label="To Date (BS)">
+              <NepaliDatePicker
+                value={filters.to_date || { year: "", month: "", day: "" }}
+                onChange={(bs) => setFilters((f) => ({ ...f, to_date: bs }))}
+              />
+            </FilterGroup>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                alignItems: "flex-end",
+                paddingBottom: 2,
+              }}
             >
-              <option value="">All Trucks</option>
-              {trucks.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.truck_number} — {t.driver_name || "—"}
-                </option>
-              ))}
-            </select>
-          </FilterGroup>
-          <FilterGroup label="Customer">
-            <select
-              name="customer_id"
-              value={filters.customer_id}
-              onChange={handleFilter}
-              style={styles.filterInput}
-            >
-              <option value="">All Customers</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </FilterGroup>
-          <FilterGroup label="Backload Supplier">
-            <select
-              name="backload_supplier_id"
-              value={filters.backload_supplier_id}
-              onChange={handleFilter}
-              style={styles.filterInput}
-            >
-              <option value="">All Suppliers</option>
-              {backloads.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.description}
-                </option>
-              ))}
-            </select>
-          </FilterGroup>
-          <FilterGroup label="Status">
-            <select
-              name="status"
-              value={filters.status}
-              onChange={handleFilter}
-              style={styles.filterInput}
-            >
-              <option value="">All</option>
-              <option value="open">Open</option>
-              <option value="completed">Completed</option>
-              <option value="verified">Verified</option>
-            </select>
-          </FilterGroup>
-          <FilterGroup label="From Date (BS)">
-            <NepaliDatePicker
-              value={filters.from_date || { year: "", month: "", day: "" }}
-              onChange={(bs) => setFilters((f) => ({ ...f, from_date: bs }))}
-            />
-          </FilterGroup>
-          <FilterGroup label="To Date (BS)">
-            <NepaliDatePicker
-              value={filters.to_date || { year: "", month: "", day: "" }}
-              onChange={(bs) => setFilters((f) => ({ ...f, to_date: bs }))}
-            />
-          </FilterGroup>
+              <button onClick={load} style={styles.filterBtn}>
+                🔍 Apply
+              </button>
+              {activeFilters > 0 && (
+                <button onClick={clearFilters} style={styles.clearBtn}>
+                  ✕ Clear ({activeFilters})
+                </button>
+              )}
+            </div>
+          </div>
 
           <div
             style={{
