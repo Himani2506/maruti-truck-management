@@ -1068,10 +1068,38 @@ export default function TripForm({ onSuccess }) {
             <BLine label="Tyre" value={fmt(n("tyre_expense") || null)} />
             <BLine label="Police Tax" value={fmt(n("police_tax") || null)} />
             <BLine label="Phone" value={fmt(n("phone_expense") || null)} />
+            {form.backload_id && (
+              <>
+                <BLine
+                  label="BL Fooding"
+                  value={fmt(effectiveBackloadFooding || null)}
+                />
+                <BLine
+                  label="BL Bhatta"
+                  value={fmt(effectiveBackloadBhatta || null)}
+                />
+                <BLine
+                  label="BL Loading"
+                  value={fmt(n("backload_loading_amount") || null)}
+                />
+                <BLine
+                  label="BL Unloading"
+                  value={fmt(n("backload_unloading_amount") || null)}
+                />
+              </>
+            )}
           </div>
           <div style={styles.breakdownTotal}>
-            <span>Total Expenses</span>
-            <span style={{ fontWeight: 700 }}>{fmt(totalExpenses)}</span>
+            <span>
+              Total Expenses{form.backload_id ? " (incl. Backload)" : ""}
+            </span>
+            <span style={{ fontWeight: 700 }}>
+              {fmt(
+                form.backload_id
+                  ? totalExpenses + backloadCashExpense
+                  : totalExpenses,
+              )}
+            </span>
           </div>
         </div>
 
@@ -1261,7 +1289,8 @@ const styles = {
     border: "1px solid #c0ccd8",
     borderRadius: 5,
     fontSize: 14,
-    width: "100%", boxSizing: "border-box"
+    width: "100%",
+    boxSizing: "border-box",
   },
   readOnly: {
     padding: "8px 10px",
@@ -1355,7 +1384,12 @@ const styles = {
     padding: "0 0 0 2px",
     opacity: 0.75,
   },
-  searchWrap: { position: "relative", display: "flex", alignItems: "center" , width: "100%"},
+  searchWrap: {
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    width: "100%",
+  },
   clearBtn: {
     position: "absolute",
     right: 8,
