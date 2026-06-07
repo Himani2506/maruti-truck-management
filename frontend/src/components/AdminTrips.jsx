@@ -459,7 +459,33 @@ export default function AdminTrips({ onEdit }) {
           </button>
           <a
             href={getExportUrl(
-              Object.fromEntries(Object.entries(filters).filter(([, v]) => v)),
+              (() => {
+                const f = {};
+                if (filters.truck_id) f.truck_id = filters.truck_id;
+                if (filters.customer_id) f.customer_id = filters.customer_id;
+                if (filters.status) f.status = filters.status;
+                if (
+                  filters.from_date?.year &&
+                  filters.from_date?.month &&
+                  filters.from_date?.day
+                )
+                  f.from_date = bsToADString(
+                    Number(filters.from_date.year),
+                    Number(filters.from_date.month),
+                    Number(filters.from_date.day),
+                  );
+                if (
+                  filters.to_date?.year &&
+                  filters.to_date?.month &&
+                  filters.to_date?.day
+                )
+                  f.to_date = bsToADString(
+                    Number(filters.to_date.year),
+                    Number(filters.to_date.month),
+                    Number(filters.to_date.day),
+                  );
+                return f;
+              })(),
             )}
             style={styles.exportBtn}
             download
@@ -584,7 +610,6 @@ export default function AdminTrips({ onEdit }) {
               )}
             </div>
           </div>
-
         </div>
       </div>
 
