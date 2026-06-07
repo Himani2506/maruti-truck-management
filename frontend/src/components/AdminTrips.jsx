@@ -42,6 +42,18 @@ const ALL_COLS = [
   { key: "grease_expense", label: "Grease" },
   { key: "road_tax", label: "Road Tax" },
   { key: "scrap_tax", label: "Scrap Tax" },
+  { key: "police_tax", label: "Police Tax" },
+  { key: "phone_expense", label: "Phone Exp" },
+  { key: "total_cash_expense", label: "Cash Exp" },
+  { key: "backload_supplier_id", label: "BL Supplier" },
+  { key: "backload_bill_no", label: "BL Bill" },
+  { key: "backload_weight_kg", label: "BL Wt(KG)" },
+  { key: "backload_loading_amount", label: "BL Loading" },
+  { key: "backload_unloading_amount", label: "BL Unloading" },
+  { key: "backload_fooding", label: "BL Fooding" },
+  { key: "backload_bhatta", label: "BL Bhatta" },
+  { key: "mpp_bill_no", label: "MPP Bill" },
+  { key: "remarks", label: "Remarks" },
   { key: "tyre_expense", label: "Tyre" },
   { key: "total_expenses", label: "Total Exp", always: true },
   { key: "freight_amount", label: "Freight", always: true },
@@ -75,6 +87,13 @@ const DEFAULT_VISIBLE = new Set([
   "tyre_expense",
   "total_expenses",
   "freight_amount",
+  "police_tax",
+  "phone_expense",
+  "total_cash_expense",
+  "backload_description",
+  "backload_loading_amount",
+  "backload_unloading_amount",
+  "mpp_bill_no",
   "surplus",
   "status",
   "_actions",
@@ -213,6 +232,13 @@ export default function AdminTrips({ onEdit }) {
     unloading_amount: sum("unloading_amount"),
     maintenance_hisab_phanna: sum("maintenance_hisab_phanna"),
     backload_freight_amount: sum("backload_freight_amount"),
+    police_tax: sum("police_tax"),
+    phone_expense: sum("phone_expense"),
+    total_cash_expense: sum("total_cash_expense"),
+    backload_loading_amount: sum("backload_loading_amount"),
+    backload_unloading_amount: sum("backload_unloading_amount"),
+    backload_fooding: sum("backload_fooding"),
+    backload_bhatta: sum("backload_bhatta"),
     maintenance_rokhar: sum("maintenance_rokhar"),
     grease_expense: sum("grease_expense"),
     road_tax: sum("road_tax"),
@@ -341,6 +367,38 @@ export default function AdminTrips({ onEdit }) {
         return fmt(t.diesel_cost);
       case "fooding":
         return fmt(t.fooding);
+      case "police_tax":
+        return fmt(t.police_tax);
+      case "phone_expense":
+        return fmt(t.phone_expense);
+      case "total_cash_expense":
+        return <b>{fmt(t.total_cash_expense)}</b>;
+      case "backload_supplier_id":
+        return (
+          <span title={t.backload_description} style={styles.ellipsis}>
+            {t.backload_description || "—"}
+          </span>
+        );
+      case "backload_bill_no":
+        return t.backload_bill_no || "—";
+      case "backload_weight_kg":
+        return t.backload_weight_kg ? `${t.backload_weight_kg} kg` : "—";
+      case "backload_loading_amount":
+        return fmt(t.backload_loading_amount);
+      case "backload_unloading_amount":
+        return fmt(t.backload_unloading_amount);
+      case "backload_fooding":
+        return fmt(t.backload_fooding);
+      case "backload_bhatta":
+        return fmt(t.backload_bhatta);
+      case "mpp_bill_no":
+        return t.mpp_bill_no || "—";
+      case "remarks":
+        return (
+          <span title={t.remarks} style={styles.ellipsis}>
+            {t.remarks || "—"}
+          </span>
+        );
       case "trip_bhatta":
         return fmt(t.trip_bhatta);
       case "loading_amount":
@@ -414,6 +472,13 @@ export default function AdminTrips({ onEdit }) {
       "trip_bhatta",
       "loading_amount",
       "unloading_amount",
+      "police_tax",
+      "phone_expense",
+      "total_cash_expense",
+      "backload_loading_amount",
+      "backload_unloading_amount",
+      "backload_fooding",
+      "backload_bhatta",
       "maintenance_hisab_phanna",
       "maintenance_rokhar",
       "grease_expense",
