@@ -585,23 +585,6 @@ export default function AdminTrips({ onEdit }) {
             </div>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              alignItems: "flex-end",
-              paddingBottom: 2,
-            }}
-          >
-            <button onClick={load} style={styles.filterBtn}>
-              🔍 Apply
-            </button>
-            {activeFilters > 0 && (
-              <button onClick={clearFilters} style={styles.clearBtn}>
-                ✕ Clear ({activeFilters})
-              </button>
-            )}
-          </div>
         </div>
       </div>
 
