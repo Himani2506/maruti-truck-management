@@ -7,7 +7,8 @@ import {
   verifyTrip,
   getExportUrl,
 } from "../api";
-import { adToBS, formatBSShort } from "../nepaliDate";
+import NepaliDatePicker from "./NepaliDatePicker";
+import { adToBS, formatBSShort, bsToADString } from "../nepaliDate";
 import toast from "react-hot-toast";
 
 const STATUS_COLOR = {
@@ -91,8 +92,8 @@ export default function AdminTrips({ onEdit }) {
   const [filters, setFilters] = useState({
     truck_id: "",
     status: "",
-    from_date: "",
-    to_date: "",
+    from_date: { year: "", month: "", day: "" },
+    to_date: { year: "", month: "", day: "" },
     customer_id: "",
     backload_supplier_id: "",
   });
@@ -166,8 +167,8 @@ export default function AdminTrips({ onEdit }) {
     setFilters({
       truck_id: "",
       status: "",
-      from_date: "",
-      to_date: "",
+      from_date: { year: "", month: "", day: "" },
+      to_date: { year: "", month: "", day: "" },
       customer_id: "",
       backload_supplier_id: "",
     });
@@ -552,23 +553,18 @@ export default function AdminTrips({ onEdit }) {
             </select>
           </FilterGroup>
           <FilterGroup label="From Date (BS)">
-            <input
-              type="date"
-              name="from_date"
-              value={filters.from_date}
-              onChange={handleFilter}
-              style={styles.filterInput}
+            <NepaliDatePicker
+              value={filters.from_date || { year: "", month: "", day: "" }}
+              onChange={(bs) => setFilters((f) => ({ ...f, from_date: bs }))}
             />
           </FilterGroup>
           <FilterGroup label="To Date (BS)">
-            <input
-              type="date"
-              name="to_date"
-              value={filters.to_date}
-              onChange={handleFilter}
-              style={styles.filterInput}
+            <NepaliDatePicker
+              value={filters.to_date || { year: "", month: "", day: "" }}
+              onChange={(bs) => setFilters((f) => ({ ...f, to_date: bs }))}
             />
           </FilterGroup>
+
           <div
             style={{
               display: "flex",
