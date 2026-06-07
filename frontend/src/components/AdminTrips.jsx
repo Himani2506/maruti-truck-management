@@ -23,6 +23,8 @@ const ALL_COLS = [
   { key: "driver_name", label: "Driver" },
   { key: "source_name", label: "Source" },
   { key: "customer_name", label: "Customer", always: true },
+  { key: "pieces", label: "Pieces" }, // ← add
+  { key: "rate_per_piece", label: "Rate/Pc" },
   { key: "start_date", label: "Start (BS)", always: true },
   { key: "end_date", label: "End (BS)" },
   { key: "num_days", label: "Days" },
@@ -80,6 +82,8 @@ const DEFAULT_VISIBLE = new Set([
   "loading_amount",
   "unloading_amount",
   "maintenance_hisab_phanna",
+  "pieces", // ← add
+  "rate_per_piece",
   "maintenance_rokhar",
   "grease_expense",
   "road_tax",
@@ -267,6 +271,19 @@ export default function AdminTrips({ onEdit }) {
             {t.source_name}
           </span>
         );
+      case "pieces":
+        return t.pieces != null ? Number(t.pieces).toLocaleString() : "—";
+
+      case "rate_per_piece": {
+        const p = parseFloat(t.pieces);
+        const f = parseFloat(t.freight_amount);
+        if (!p || !f) return "—";
+        return (
+          <span style={{ color: "#1a3a5c", fontWeight: 600 }}>
+            NPR {(f / p).toFixed(2)}/pc
+          </span>
+        );
+      }
       case "customer_name": {
         let extras = [];
         try {

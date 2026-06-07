@@ -1,13 +1,13 @@
 
 -- TRUCKS
-INSERT INTO trucks (truck_number, driver_name) VALUES
-  ('8596', 'Bashunath'),
-  ('8597', 'Bibek Bista'),
-  ('8598', 'Om Bahadur Gurung'),
-  ('8599', 'Bibek Bista'),
-  ('8600', 'Suman Lama Thokar'),
-  ('0122', 'Madhav Karki')
-ON CONFLICT (truck_number) DO NOTHING;
+INSERT INTO trucks (truck_number, driver_name, avg_kmpl) VALUES
+  ('8596', 'Bashunath',        3.52),
+  ('8597', 'Bibek Bista',       4.21),
+  ('8598', 'Om Bahadur Gurung', 3.87),
+  ('8599', 'Bibek Bista',       4.05),
+  ('8600', 'Suman Lama Thokar', 3.76),
+  ('0122', 'Madhav Karki',      3.94);
+  
 
 -- SOURCES
 -- Source coordinates: Maruti is based in Kathmandu / Bhaktapur industrial area

@@ -72,6 +72,25 @@ router.patch('/customers/:id', async (req, res) => {
   }
 });
 
+
+router.get('/customers/rates', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT c.id, c.name, c.destination_address,
+        c.freight_actual, c.avg_rate_multiplier,
+        c.rate_trip_count, c.last_rate_updated,
+        c.avg_rate_per_piece, c.piece_trip_count,
+        ROUND(c.freight_actual * COALESCE(c.avg_rate_multiplier, 1.3), 2) AS avg_freight_charged
+      FROM customers c
+      WHERE c.freight_actual IS NOT NULL
+      ORDER BY c.rate_trip_count DESC NULLS LAST, c.name ASC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
 
 
@@ -104,3 +123,5 @@ router.post('/settings', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
