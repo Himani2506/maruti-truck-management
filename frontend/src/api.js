@@ -26,3 +26,5 @@ export const getExportUrl = (filters = {}) => {
   const params = new URLSearchParams(filters).toString();
   return `${BASE_URL}/api/trips/export/excel${params ? '?' + params : ''}`;
 };
+
+export const getCustomerRates = () => api.get('/customers/rates').then(r => r.data);

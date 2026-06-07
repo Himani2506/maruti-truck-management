@@ -214,6 +214,9 @@ export default function TripForm({ onSuccess }) {
   const [selectedTruck, setSelectedTruck] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [backloads, setBackloads] = useState([]);
+  const [customerPieces, setCustomerPieces] = useState({});
+  const [customerFreight, setCustomerFreight] = useState({});
+
 
   const topRef = useRef(null);
 
@@ -419,6 +422,9 @@ export default function TripForm({ onSuccess }) {
         loading_unloading: n("loading_amount") + n("unloading_amount") || null,
         backload_supplier_id: form.backload_id || null,
         backload_bill_no: form.backload_bill_no || null,
+        pieces: customerPieces[form.customer_ids[0]] || null,
+        customer_pieces: customerPieces,
+        customer_freight: customerFreight,
         backload_start_date: backloadStartAD || null,
         backload_end_date: backloadEndAD || null,
         backload_fooding: effectiveBackloadFooding,
@@ -427,6 +433,8 @@ export default function TripForm({ onSuccess }) {
         backload_unloading_amount: form.backload_unloading_amount || null,
       });
       toast.success("Trip entry saved!");
+      setCustomerPieces({});
+      setCustomerFreight({});
       setForm(initialForm);
       setStartBS(emptyBS);
       setEndBS(emptyBS);
@@ -569,22 +577,131 @@ export default function TripForm({ onSuccess }) {
 
         {/* Info rows for each selected customer */}
         {selectedCustomers.map((c, i) => (
-          <InfoBox
+          <div
             key={c.id}
-            color={i === 0 ? "#e8f5e9" : "#f5f5f5"}
-            border={i === 0 ? "#a5d6a7" : "#d0d0d0"}
+            style={{
+              background: i === 0 ? "#e8f5e9" : "#f5f5f5",
+              border: `1px solid ${i === 0 ? "#a5d6a7" : "#d0d0d0"}`,
+              borderRadius: 6,
+              padding: "10px 14px",
+              margin: "8px 0 6px",
+            }}
           >
-            <b>
-              {i === 0 ? "🥇 Primary" : `#${i + 1}`}: {c.name}
-            </b>
-            &nbsp;— {c.destination_address?.trim() || "⚠ Address not set"}
-            &nbsp;&nbsp;<b>Freight Rate:</b> {fmt(c.freight_actual)}
-            {i === 0 && (
-              <span style={{ fontSize: 11, color: "#2a6098", marginLeft: 8 }}>
-                (auto-fills freight below)
-              </span>
-            )}
-          </InfoBox>
+            <div style={{ fontSize: 13, marginBottom: 8 }}>
+              <b>
+                {i === 0 ? "🥇 Primary" : `#${i + 1}`}: {c.name}
+              </b>
+              &nbsp;— {c.destination_address?.trim() || "⚠ Address not set"}
+              &nbsp;&nbsp;<b>Base Rate:</b> {fmt(c.freight_actual)}
+              {c.avg_rate_per_piece && (
+                <span style={{ fontSize: 11, color: "#2a6098", marginLeft: 8 }}>
+                  Avg NPR {Number(c.avg_rate_per_piece).toLocaleString()}/piece
+                  ({c.piece_trip_count} trips)
+                </span>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  flex: 1,
+                  minWidth: 140,
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: 11,
+                    color: "#555",
+                    marginBottom: 3,
+                    fontWeight: 500,
+                  }}
+                >
+                  Pieces Delivered
+                </label>
+                <input
+                  type="number"
+                  value={customerPieces[c.id] || ""}
+                  onChange={(e) =>
+                    setCustomerPieces((p) => ({ ...p, [c.id]: e.target.value }))
+                  }
+                  onKeyDown={handleEnter}
+                  style={styles.input}
+                  placeholder="e.g. 500"
+                />
+              </div>
+              {i > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    flex: 1,
+                    minWidth: 140,
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: 11,
+                      color: "#555",
+                      marginBottom: 3,
+                      fontWeight: 500,
+                    }}
+                  >
+                    Freight Amount (NPR)
+                  </label>
+                  <input
+                    type="number"
+                    value={customerFreight[c.id] || ""}
+                    onChange={(e) =>
+                      setCustomerFreight((p) => ({
+                        ...p,
+                        [c.id]: e.target.value,
+                      }))
+                    }
+                    onKeyDown={handleEnter}
+                    style={styles.input}
+                    placeholder="e.g. 15000"
+                  />
+                </div>
+              )}
+              {customerPieces[c.id] &&
+                (i === 0 ? form.freight_amount : customerFreight[c.id]) && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      flex: 1,
+                      minWidth: 140,
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: 11,
+                        color: "#555",
+                        marginBottom: 3,
+                        fontWeight: 500,
+                      }}
+                    >
+                      Rate / Piece — Auto
+                    </label>
+                    <input
+                      readOnly
+                      value={`NPR ${(
+                        (i === 0
+                          ? parseFloat(form.freight_amount)
+                          : parseFloat(customerFreight[c.id])) /
+                        parseFloat(customerPieces[c.id])
+                      ).toFixed(2)}/pc`}
+                      style={{
+                        ...styles.readOnly,
+                        fontWeight: 600,
+                        color: "#1a3a5c",
+                      }}
+                    />
+                  </div>
+                )}
+            </div>
+          </div>
         ))}
 
         {/* Freight amount — shown once a customer is selected */}

@@ -15,10 +15,14 @@ app.use(express.json());
 app.use('/api', masterRoutes);   // trucks, sources, customers, backloads
 app.use('/api/trips', tripsRoutes);
 
+const alertsRoutes = require('./routes/alerts');
+app.use('/api/alerts', alertsRoutes);
+
+
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Maruti Trucks API running on http://localhost:${PORT}`);
 });
 

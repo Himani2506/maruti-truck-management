@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import TripForm      from '../../components/TripForm';
 import AdminTrips    from '../../components/AdminTrips';
 import AdminSettings from '../../components/AdminSettings';
+import { useOutletContext } from 'react-router-dom';
 
 export default function TrucksPage() {
   const [view, setView]         = useState('driver');
   const [refreshKey, setRefreshKey] = useState(0);
+  const { onTripSaved } = useOutletContext();
   const refresh = () => setRefreshKey(k => k + 1);
+
 
   const tabs = [
     { id: 'driver',   label: '🚛 New Trip Entry' },
@@ -28,7 +31,7 @@ export default function TrucksPage() {
         ))}
       </nav>
 
-      {view === 'driver'   && <TripForm onSuccess={refresh} />}
+      {view === 'driver' && <TripForm onSuccess={() => { refresh(); onTripSaved(); }} />}
       {view === 'admin'    && <AdminTrips key={refreshKey} onEdit={(id) => alert(`Edit trip #${id}`)} />}
       {view === 'settings' && <AdminSettings />}
     </div>
