@@ -22,6 +22,17 @@ export const createTrip = (data)        => api.post('/trips', data).then(r => r.
 export const updateTrip = (id, data)    => api.patch(`/trips/${id}`, data).then(r => r.data);
 export const verifyTrip = (id)          => api.patch(`/trips/${id}/verify`).then(r => r.data);
 
+// ── Scrap ─────────────────────────────────────────────────────
+export const getScrapEntries   = ()         => api.get('/scrap').then(r => r.data);
+export const getScrapPartySummary = ()      => api.get('/scrap/party-summary').then(r => r.data);
+export const createScrapEntry  = (data)     => api.post('/scrap', data).then(r => r.data);
+export const updateScrapEntry    = (id, data) => api.put(`/scrap/${id}`, data).then(r => r.data);
+export const overrideScrapEntry = (id, data) => api.put(`/scrap/${id}/override`, data).then(r => r.data);
+export const deleteScrapEntry  = (id)       => api.delete(`/scrap/${id}`).then(r => r.data);
+export const getScrapPartySheet  = (name)     => api.get(`/scrap/party-sheet/${encodeURIComponent(name)}`).then(r => r.data);
+
+
+
 export const getExportUrl = (filters = {}) => {
   const params = new URLSearchParams(filters).toString();
   return `${BASE_URL}/api/trips/export/excel${params ? '?' + params : ''}`;

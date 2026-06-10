@@ -1,12 +1,12 @@
 
 -- TRUCKS
 INSERT INTO trucks (truck_number, driver_name, avg_kmpl) VALUES
-  ('8596', 'Bashunath',        3.52),
-  ('8597', 'Bibek Bista',       4.21),
-  ('8598', 'Om Bahadur Gurung', 3.87),
-  ('8599', 'Bibek Bista',       4.05),
-  ('8600', 'Suman Lama Thokar', 3.76),
-  ('0122', 'Madhav Karki',      3.94);
+  ('8596', 'Bashunath',        4.2),
+  ('8597', 'Bibek Bista',       4.2),
+  ('8598', 'Om Bahadur Gurung', 4.2),
+  ('8599', 'Bibek Bista',       4.2),
+  ('8600', 'Suman Lama Thokar', 4.2),
+  ('0122', 'Madhav Karki',      4.2);
   
 
 -- SOURCES
