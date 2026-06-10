@@ -787,10 +787,9 @@ export default function TripForm({ onSuccess, editTripId }) {
     return d >= 0 ? d + 1 : null;
   })();
   const foodingAuto = numDays ? numDays * FOODING_RATE : 0;
-  const fooding =
-    form.fooding_override !== ""
-      ? parseFloat(form.fooding_override) || 0
-      : foodingAuto;
+  const fooding = form.fooding_override !== ""
+  ? parseFloat(form.fooding_override) || 0
+  : foodingAuto;
   const tripBhatta = startAD && endAD ? BHATTA_RATE : 0;
 
   const meterStart = parseFloat(form.meter_start) || null;
@@ -1544,11 +1543,7 @@ export default function TripForm({ onSuccess, editTripId }) {
             <input
               type="number"
               name="fooding_override"
-              value={
-                form.fooding_override !== ""
-                  ? form.fooding_override
-                  : foodingAuto || ""
-              }
+              value={form.fooding_override}
               onChange={handleChange}
               onKeyDown={handleEnter}
               style={styles.input}

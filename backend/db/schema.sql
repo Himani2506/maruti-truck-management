@@ -94,3 +94,37 @@ CREATE INDEX IF NOT EXISTS idx_trips_status ON trips(status);
 
 -- Add avg_kmpl to trucks if not exists
 ALTER TABLE trucks ADD COLUMN IF NOT EXISTS avg_kmpl DECIMAL(10,2);
+
+-- trips table missing columns
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS loading_amount numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS unloading_amount numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS maintenance_hisab_phanna numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS maintenance_rokhar numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS grease_expense numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS road_tax numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS scrap_tax numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS tyre_expense numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS police_tax numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS phone_expense numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS backload_supplier_id integer REFERENCES backloads(id);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS backload_freight_amount numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS backload_loading_amount numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS backload_unloading_amount numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS backload_start_date date;
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS backload_end_date date;
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS backload_fooding numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS backload_bhatta numeric(10,2);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS customer_ids integer[];
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS customer_pieces jsonb;
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS customer_freight jsonb;
+
+-- trip_customers missing columns (already done but just in case)
+ALTER TABLE trip_customers ADD COLUMN IF NOT EXISTS pieces integer;
+ALTER TABLE trip_customers ADD COLUMN IF NOT EXISTS freight_amount numeric(10,2);
+
+-- customers missing columns
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS avg_rate_multiplier numeric(10,4);
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS rate_trip_count integer DEFAULT 0;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS last_rate_updated timestamptz;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS avg_rate_per_piece numeric(10,2);
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS piece_trip_count integer DEFAULT 0;
