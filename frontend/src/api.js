@@ -10,10 +10,6 @@ export const getSources   = ()  => api.get('/sources').then(r => r.data);
 export const getCustomers = ()  => api.get('/customers').then(r => r.data);
 export const getBackloads = ()  => api.get('/backloads').then(r => r.data);
 
-// ── Distance ─────────────────────────────────────────────────
-export const getDistance = (origin_lat, origin_lng, dest_lat, dest_lng) =>
-  api.get('/distance', { params: { origin_lat, origin_lng, dest_lat, dest_lng } })
-     .then(r => r.data);
 
 // ── Trips ─────────────────────────────────────────────────────
 export const getTrips  = (filters = {}) => api.get('/trips',  { params: filters }).then(r => r.data);
