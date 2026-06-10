@@ -5,9 +5,13 @@ import {
   getCustomers,
   getBackloads,
   createTrip,
+  createCustomer,
+  createBackload,
+  getTrip,
+  updateTrip,
 } from "../api";
-import { bsToADString, formatBS } from "../nepaliDate";
 import NepaliDatePicker from "./NepaliDatePicker";
+import { bsToADString, formatBS, adToBS } from "../nepaliDate";
 import toast from "react-hot-toast";
 
 const FOODING_RATE = 1000;
@@ -29,6 +33,7 @@ const initialForm = {
   grease_expense: "",
   trip_bhatta_override: "",
   road_tax: "",
+  fooding_override: "",
   scrap_tax: "",
   tyre_expense: "",
   police_tax: "",
@@ -44,14 +49,26 @@ const initialForm = {
 
 const emptyBS = { year: "", month: "", day: "" };
 
-// ── Customer Search + Tag Input ──────────────────────────────
-function CustomerSearchInput({ customers, selectedIds, onToggle }) {
+function CustomerSearchInput({
+  customers,
+  selectedIds,
+  onToggle,
+  onCustomerCreated,
+}) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newCust, setNewCust] = useState({
+    name: "",
+    destination_address: "",
+    freight_actual: "",
+  });
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState("");
   const inputRef = useRef(null);
-  const dropdownRef = useRef(null);
   const wrapRef = useRef(null);
+  const nameRef = useRef(null);
 
   const filtered = customers.filter(
     (c) =>
@@ -59,21 +76,36 @@ function CustomerSearchInput({ customers, selectedIds, onToggle }) {
       c.name.toLowerCase().includes(query.toLowerCase()),
   );
 
+  const exactMatch = customers.some(
+    (c) => c.name.toLowerCase() === query.toLowerCase(),
+  );
+  const showAddOption = query.trim().length > 0 && !exactMatch;
+
   useEffect(() => {
     const handler = (e) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target)) {
         setOpen(false);
         setQuery("");
+        setShowAddForm(false);
+        setAddError("");
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Focus name input when mini-form opens
+  useEffect(() => {
+    if (showAddForm) {
+      setTimeout(() => nameRef.current?.focus(), 0);
+    }
+  }, [showAddForm]);
+
   const select = (customer) => {
     onToggle(customer.id);
     setQuery("");
     setHighlighted(0);
+    setOpen(false);
     inputRef.current?.focus();
   };
 
@@ -81,7 +113,10 @@ function CustomerSearchInput({ customers, selectedIds, onToggle }) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setOpen(true);
-      setHighlighted((h) => Math.min(h + 1, filtered.length - 1));
+      // +1 extra slot for the add option if visible
+      setHighlighted((h) =>
+        Math.min(h + 1, filtered.length - 1 + (showAddOption ? 1 : 0)),
+      );
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlighted((h) => Math.max(h - 1, 0));
@@ -89,10 +124,82 @@ function CustomerSearchInput({ customers, selectedIds, onToggle }) {
       e.preventDefault();
       if (open && filtered[highlighted]) {
         select(filtered[highlighted]);
+      } else if (open && showAddOption && filtered.length === 0) {
+        // no matches, only add option visible → open form
+        openAddForm();
+      } else if (open && showAddOption && highlighted === filtered.length) {
+        // user arrowed down to the add option
+        openAddForm();
       }
     } else if (e.key === "Escape") {
       setOpen(false);
       setQuery("");
+      setShowAddForm(false);
+    }
+  };
+
+  // Enter key navigation inside the mini-form
+  const handleFormKeyDown = (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const focusable = Array.from(
+        wrapRef.current?.querySelectorAll(
+          "input:not([disabled]), button:not([disabled])",
+        ) || [],
+      ).filter((el) => !el.readOnly);
+      const idx = focusable.indexOf(e.target);
+      const next = focusable[idx + 1];
+      if (next && next.tagName !== "BUTTON") {
+        // still more inputs to go through
+        next.focus();
+      } else {
+        // last input or no next → submit
+        handleAddSubmit();
+      }
+    }
+  };
+
+  const openAddForm = () => {
+    setTimeout(() => {
+      setNewCust({
+        name: query.trim(),
+        destination_address: "",
+        freight_actual: "",
+      });
+      setShowAddForm(true);
+      setOpen(false);
+      setAddError("");
+    }, 0);
+  };
+  const toTitleCase = (str) =>
+    str
+      .trim()
+      .replace(
+        /\w\S*/g,
+        (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(),
+      );
+
+  const handleAddSubmit = async () => {
+    if (!newCust.name.trim()) {
+      setAddError("Name is required.");
+      return;
+    }
+    setAdding(true);
+    setAddError("");
+    try {
+      const created = await createCustomer({
+        ...newCust,
+        name: toTitleCase(newCust.name),
+      });
+      onCustomerCreated(created);
+      setShowAddForm(false);
+      setQuery("");
+      setOpen(false);
+    } catch (err) {
+      setAddError(err.response?.data?.error || "Failed to create customer.");
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -137,8 +244,358 @@ function CustomerSearchInput({ customers, selectedIds, onToggle }) {
             setQuery(e.target.value);
             setOpen(true);
             setHighlighted(0);
+            setShowAddForm(false);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            if (!showAddForm) setOpen(true);
+          }}
+          onKeyDown={handleKeyDown}
+          style={styles.input}
+          autoComplete="off"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setShowAddForm(false);
+              inputRef.current?.focus();
+            }}
+            style={styles.clearBtn}
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      {open && !showAddForm && (
+        <div style={styles.dropdown}>
+          {filtered.length === 0 && !showAddOption ? (
+            <div style={styles.dropdownEmpty}>
+              {query
+                ? `No customer matching "${query}"`
+                : selectedIds.length === customers.length
+                  ? "All customers selected"
+                  : "Start typing to search…"}
+            </div>
+          ) : (
+            <>
+              {filtered.map((c, i) => (
+                <div
+                  key={c.id}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    select(c);
+                  }}
+                  onMouseEnter={() => setHighlighted(i)}
+                  style={{
+                    ...styles.dropdownItem,
+                    background: i === highlighted ? "#e8f0fe" : "#fff",
+                    fontWeight: i === highlighted ? 600 : 400,
+                  }}
+                >
+                  <span style={{ fontSize: 13 }}>{c.name}</span>
+                  {c.destination_address && (
+                    <span style={styles.dropdownSub}>
+                      {c.destination_address.trim()}
+                    </span>
+                  )}
+                </div>
+              ))}
+              {showAddOption && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    openAddForm();
+                  }}
+                  onMouseEnter={() => setHighlighted(filtered.length)}
+                  style={{
+                    ...styles.dropdownItem,
+                    background:
+                      highlighted === filtered.length ? "#ffe082" : "#fff8e1",
+                    borderTop: "1px solid #ffe082",
+                    cursor: "pointer",
+                  }}
+                >
+                  <span
+                    style={{ fontSize: 13, color: "#b45309", fontWeight: 600 }}
+                  >
+                    ＋ Add "{query.trim()}" as new customer
+                  </span>
+                  <span style={styles.dropdownSub}>
+                    Click to fill in details and save
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {showAddForm && (
+        <div style={addFormStyles.wrap} onKeyDown={handleFormKeyDown}>
+          <div style={addFormStyles.header}>
+            <span style={addFormStyles.title}>New Customer</span>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddForm(false);
+                setAddError("");
+              }}
+              style={addFormStyles.closeBtn}
+            >
+              ✕
+            </button>
+          </div>
+
+          <div style={addFormStyles.fieldWrap}>
+            <label style={addFormStyles.label}>Name *</label>
+            <input
+              ref={nameRef}
+              type="text"
+              value={newCust.name}
+              onChange={(e) =>
+                setNewCust((p) => ({ ...p, name: e.target.value }))
+              }
+              style={styles.input}
+              placeholder="e.g. Shrestha Traders"
+            />
+          </div>
+
+          <div style={addFormStyles.fieldWrap}>
+            <label style={addFormStyles.label}>Destination Address</label>
+            <input
+              type="text"
+              value={newCust.destination_address}
+              onChange={(e) =>
+                setNewCust((p) => ({
+                  ...p,
+                  destination_address: e.target.value,
+                }))
+              }
+              style={styles.input}
+              placeholder="e.g. Butwal, Lumbini"
+            />
+          </div>
+
+          <div style={addFormStyles.fieldWrap}>
+            <label style={addFormStyles.label}>Freight Rate (NPR)</label>
+            <input
+              type="number"
+              value={newCust.freight_actual}
+              onChange={(e) =>
+                setNewCust((p) => ({ ...p, freight_actual: e.target.value }))
+              }
+              style={styles.input}
+              placeholder="e.g. 28000"
+            />
+          </div>
+
+          {addError && <div style={addFormStyles.error}>{addError}</div>}
+
+          <div style={addFormStyles.actions}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddForm(false);
+                setAddError("");
+              }}
+              style={addFormStyles.cancelBtn}
+              disabled={adding}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleAddSubmit}
+              style={addFormStyles.saveBtn}
+              disabled={adding}
+            >
+              {adding ? "Saving…" : "Save & Select"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BackloadSupplierSelect({
+  backloads,
+  value,
+  onChange,
+  onBackloadCreated,
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newDesc, setNewDesc] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState("");
+  const inputRef = useRef(null);
+  const nameRef = useRef(null);
+  const wrapRef = useRef(null);
+
+  const selected =
+    backloads.find((b) => String(b.id) === String(value)) || null;
+
+  const filtered = backloads.filter((b) =>
+    b.description.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  const exactMatch = backloads.some(
+    (b) => b.description.toLowerCase() === query.toLowerCase(),
+  );
+  const showAddOption = query.trim().length > 0 && !exactMatch;
+
+  const toTitleCase = (str) =>
+    str
+      .trim()
+      .replace(
+        /\w\S*/g,
+        (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(),
+      );
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false);
+        setQuery("");
+        setShowAddForm(false);
+        setAddError("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    if (showAddForm) setTimeout(() => nameRef.current?.focus(), 0);
+  }, [showAddForm]);
+
+  const select = (b) => {
+    onChange({ target: { name: "backload_id", value: String(b.id) } });
+    setQuery("");
+    setOpen(false);
+    setHighlighted(0);
+  };
+
+  const clearSelection = () => {
+    onChange({ target: { name: "backload_id", value: "" } });
+    setQuery("");
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setOpen(true);
+      setHighlighted((h) =>
+        Math.min(h + 1, filtered.length - 1 + (showAddOption ? 1 : 0)),
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlighted((h) => Math.max(h - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (open && filtered[highlighted]) {
+        select(filtered[highlighted]);
+      } else if (
+        open &&
+        showAddOption &&
+        (filtered.length === 0 || highlighted === filtered.length)
+      ) {
+        openAddForm();
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      setQuery("");
+      setShowAddForm(false);
+    }
+  };
+
+  const openAddForm = () => {
+    setTimeout(() => {
+      setNewDesc(query.trim());
+      setShowAddForm(true);
+      setOpen(false);
+      setAddError("");
+    }, 0);
+  };
+
+  const handleFormKeyDown = (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddSubmit();
+    }
+    if (e.key === "Escape") {
+      setShowAddForm(false);
+      setAddError("");
+    }
+  };
+
+  const handleAddSubmit = async () => {
+    if (!newDesc.trim()) {
+      setAddError("Description is required.");
+      return;
+    }
+    setAdding(true);
+    setAddError("");
+    try {
+      const created = await createBackload({
+        description: toTitleCase(newDesc),
+      });
+      onBackloadCreated(created);
+      onChange({ target: { name: "backload_id", value: String(created.id) } });
+      setShowAddForm(false);
+      setNewDesc("");
+      setQuery("");
+    } catch (err) {
+      setAddError(err.response?.data?.error || "Failed to create supplier.");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      {/* ── Selected tag ── */}
+      {selected && (
+        <div style={styles.tagRow}>
+          <div style={styles.tag}>
+            <span style={{ fontSize: 12.5 }}>{selected.description}</span>
+            <button
+              type="button"
+              onClick={clearSelection}
+              style={styles.tagRemove}
+              title="Remove"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Search input ── */}
+      <div style={styles.searchWrap}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          placeholder={
+            selected ? "Change supplier…" : "Type to search suppliers…"
+          }
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+            setHighlighted(0);
+            setShowAddForm(false);
+          }}
+          onFocus={() => {
+            if (!showAddForm) setOpen(true);
+          }}
           onKeyDown={handleKeyDown}
           style={styles.input}
           autoComplete="off"
@@ -157,40 +614,134 @@ function CustomerSearchInput({ customers, selectedIds, onToggle }) {
         )}
       </div>
 
-      {open && (
-        <div ref={dropdownRef} style={styles.dropdown}>
-          {filtered.length === 0 ? (
+      {/* ── Dropdown ── */}
+      {open && !showAddForm && (
+        <div style={styles.dropdown}>
+          {/* "No backload" option always at top */}
+          <div
+            onMouseDown={(e) => {
+              e.preventDefault();
+              clearSelection();
+              setOpen(false);
+            }}
+            style={{
+              ...styles.dropdownItem,
+              background: !value ? "#e8f0fe" : "#fff",
+              fontWeight: !value ? 600 : 400,
+              color: "#888",
+              fontStyle: "italic",
+            }}
+          >
+            <span style={{ fontSize: 13 }}>No backload</span>
+          </div>
+
+          {filtered.length === 0 && !showAddOption ? (
             <div style={styles.dropdownEmpty}>
               {query
-                ? `No customer matching "${query}"`
-                : selectedIds.length === customers.length
-                  ? "All customers selected"
-                  : "Start typing to search…"}
+                ? `No supplier matching "${query}"`
+                : "Start typing to search…"}
             </div>
           ) : (
-            filtered.map((c, i) => (
-              <div
-                key={c.id}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  select(c);
-                }}
-                onMouseEnter={() => setHighlighted(i)}
-                style={{
-                  ...styles.dropdownItem,
-                  background: i === highlighted ? "#e8f0fe" : "#fff",
-                  fontWeight: i === highlighted ? 600 : 400,
-                }}
-              >
-                <span style={{ fontSize: 13 }}>{c.name}</span>
-                {c.destination_address && (
-                  <span style={styles.dropdownSub}>
-                    {c.destination_address.trim()}
+            <>
+              {filtered.map((b, i) => (
+                <div
+                  key={b.id}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    select(b);
+                  }}
+                  onMouseEnter={() => setHighlighted(i)}
+                  style={{
+                    ...styles.dropdownItem,
+                    background: i === highlighted ? "#e8f0fe" : "#fff",
+                    fontWeight: i === highlighted ? 600 : 400,
+                  }}
+                >
+                  <span style={{ fontSize: 13 }}>{b.description}</span>
+                </div>
+              ))}
+              {showAddOption && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    openAddForm();
+                  }}
+                  onMouseEnter={() => setHighlighted(filtered.length)}
+                  style={{
+                    ...styles.dropdownItem,
+                    background:
+                      highlighted === filtered.length ? "#ffe082" : "#fff8e1",
+                    borderTop: "1px solid #ffe082",
+                    cursor: "pointer",
+                  }}
+                >
+                  <span
+                    style={{ fontSize: 13, color: "#b45309", fontWeight: 600 }}
+                  >
+                    ＋ Add "{query.trim()}" as new supplier
                   </span>
-                )}
-              </div>
-            ))
+                  <span style={styles.dropdownSub}>
+                    Click to fill in details and save
+                  </span>
+                </div>
+              )}
+            </>
           )}
+        </div>
+      )}
+
+      {/* ── Inline Add Form ── */}
+      {showAddForm && (
+        <div style={addFormStyles.wrap} onKeyDown={handleFormKeyDown}>
+          <div style={addFormStyles.header}>
+            <span style={addFormStyles.title}>New Backload Supplier</span>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddForm(false);
+                setAddError("");
+              }}
+              style={addFormStyles.closeBtn}
+            >
+              ✕
+            </button>
+          </div>
+
+          <div style={addFormStyles.fieldWrap}>
+            <label style={addFormStyles.label}>Description *</label>
+            <input
+              ref={nameRef}
+              type="text"
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+              style={styles.input}
+              placeholder="e.g. Scrap from Hariom Suppliers"
+            />
+          </div>
+
+          {addError && <div style={addFormStyles.error}>{addError}</div>}
+
+          <div style={addFormStyles.actions}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddForm(false);
+                setAddError("");
+              }}
+              style={addFormStyles.cancelBtn}
+              disabled={adding}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleAddSubmit}
+              style={addFormStyles.saveBtn}
+              disabled={adding}
+            >
+              {adding ? "Saving…" : "Save & Select"}
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -198,7 +749,7 @@ function CustomerSearchInput({ customers, selectedIds, onToggle }) {
 }
 
 // ── Main Form ────────────────────────────────────────────────
-export default function TripForm({ onSuccess }) {
+export default function TripForm({ onSuccess, editTripId }) {
   const [form, setForm] = useState(initialForm);
   const [startBS, setStartBS] = useState(emptyBS);
   const [endBS, setEndBS] = useState(emptyBS);
@@ -215,7 +766,6 @@ export default function TripForm({ onSuccess }) {
 
   const topRef = useRef(null);
 
-  // ── CHANGE 3: Disable scroll-to-change on all number inputs ──
   useEffect(() => {
     const handler = (e) => {
       if (document.activeElement?.type === "number") {
@@ -229,7 +779,6 @@ export default function TripForm({ onSuccess }) {
   const startAD = bsToADString(startBS.year, startBS.month, startBS.day);
   const endAD = bsToADString(endBS.year, endBS.month, endBS.day);
 
-  // ── Days ─────────────────────────────────────────────────────
   const numDays = (() => {
     if (!startAD || !endAD) return null;
     const d = Math.ceil(
@@ -237,10 +786,13 @@ export default function TripForm({ onSuccess }) {
     );
     return d >= 0 ? d + 1 : null;
   })();
-  const fooding = numDays ? numDays * FOODING_RATE : 0;
+  const foodingAuto = numDays ? numDays * FOODING_RATE : 0;
+  const fooding =
+    form.fooding_override !== ""
+      ? parseFloat(form.fooding_override) || 0
+      : foodingAuto;
   const tripBhatta = startAD && endAD ? BHATTA_RATE : 0;
 
-  // ── Odometer ─────────────────────────────────────────────────
   const meterStart = parseFloat(form.meter_start) || null;
   const meterEnd = parseFloat(form.meter_end) || null;
   const distanceKm =
@@ -339,7 +891,7 @@ export default function TripForm({ onSuccess }) {
       .reduce((sum, id) => sum + (parseFloat(customerFreight[id]) || 0), 0);
 
   const effectiveBackloadFreight =
-  (parseFloat(form.backload_freight_amount) || 0) + n("scrap_tax");
+    (parseFloat(form.backload_freight_amount) || 0) + n("scrap_tax");
 
   const totalRevenue =
     totalFreightDisplay + Number(form.backload_freight_amount || 0);
@@ -355,7 +907,7 @@ export default function TripForm({ onSuccess }) {
           (parseFloat(form.backload_loading_amount) || 0) -
           (parseFloat(form.backload_unloading_amount) || 0) -
           effectiveBackloadBhatta -
-          effectiveBackloadFooding 
+          effectiveBackloadFooding
         ).toFixed(2),
       )
     : null;
@@ -411,6 +963,16 @@ export default function TripForm({ onSuccess }) {
     });
   };
 
+  const handleCustomerCreated = (newCustomer) => {
+    setCustomers((prev) => [...prev, newCustomer]);
+    toggleCustomer(newCustomer.id);
+    toast.success(`"${newCustomer.name}" added and selected!`);
+  };
+
+  const handleBackloadCreated = (newBackload) => {
+    setBackloads((prev) => [...prev, newBackload]);
+    toast.success(`"${newBackload.description}" added and selected!`);
+  };
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.truck_id || !form.source_id || !form.customer_ids.length) {
@@ -422,42 +984,51 @@ export default function TripForm({ onSuccess }) {
       return;
     }
     setSubmitting(true);
+
+    const payload = {
+      ...form,
+      customer_id: form.customer_ids[0],
+      customer_ids: form.customer_ids,
+      start_date: startAD,
+      end_date: endAD || null,
+      distance_km: distanceKm,
+      diesel_needed: dieselNeeded,
+      diesel_cost: dieselCost,
+      trip_bhatta: effectiveBhatta,
+      police_tax: n("police_tax") || null,
+      phone_expense: n("phone_expense") || null,
+      loading_unloading: n("loading_amount") + n("unloading_amount") || null,
+      backload_supplier_id: form.backload_id || null,
+      backload_bill_no: form.backload_bill_no || null,
+      pieces: customerPieces[form.customer_ids[0]] || null,
+      customer_pieces: customerPieces,
+      customer_freight: customerFreight,
+      backload_start_date: backloadStartAD || null,
+      backload_end_date: backloadEndAD || null,
+      backload_fooding: effectiveBackloadFooding,
+      backload_bhatta: effectiveBackloadBhatta,
+      backload_loading_amount: form.backload_loading_amount || null,
+      backload_unloading_amount: form.backload_unloading_amount || null,
+    };
+
     try {
-      await createTrip({
-        ...form,
-        customer_id: form.customer_ids[0],
-        customer_ids: form.customer_ids,
-        start_date: startAD,
-        end_date: endAD || null,
-        distance_km: distanceKm,
-        diesel_needed: dieselNeeded,
-        diesel_cost: dieselCost,
-        trip_bhatta: effectiveBhatta,
-        police_tax: n("police_tax") || null,
-        phone_expense: n("phone_expense") || null,
-        loading_unloading: n("loading_amount") + n("unloading_amount") || null,
-        backload_supplier_id: form.backload_id || null,
-        backload_bill_no: form.backload_bill_no || null,
-        pieces: customerPieces[form.customer_ids[0]] || null,
-        customer_pieces: customerPieces,
-        customer_freight: customerFreight,
-        backload_start_date: backloadStartAD || null,
-        backload_end_date: backloadEndAD || null,
-        backload_fooding: effectiveBackloadFooding,
-        backload_bhatta: effectiveBackloadBhatta,
-        backload_loading_amount: form.backload_loading_amount || null,
-        backload_unloading_amount: form.backload_unloading_amount || null,
-      });
-      toast.success("Trip entry saved!");
-      setCustomerPieces({});
-      setCustomerFreight({});
-      setForm(initialForm);
-      setStartBS(emptyBS);
-      setEndBS(emptyBS);
-      setBackloadStartBS(emptyBS);
-      setBackloadEndBS(emptyBS);
+      if (editTripId) {
+        await updateTrip(editTripId, payload);
+        toast.success("Trip updated!");
+      } else {
+        await createTrip(payload);
+        toast.success("Trip entry saved!");
+        setCustomerPieces({});
+        setCustomerFreight({});
+        setForm(initialForm);
+        setStartBS(emptyBS);
+        setEndBS(emptyBS);
+        setBackloadStartBS(emptyBS);
+        setBackloadEndBS(emptyBS);
+        topRef.current?.scrollIntoView({ behavior: "smooth" });
+        return;
+      }
       onSuccess?.();
-      topRef.current?.scrollIntoView({ behavior: "smooth" });
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to save trip.");
     } finally {
@@ -476,7 +1047,66 @@ export default function TripForm({ onSuccess }) {
       if (index > -1 && focusable[index + 1]) focusable[index + 1].focus();
     }
   };
+  // ADD after the existing useEffects
+  useEffect(() => {
+    if (!editTripId) return;
+    getTrip(editTripId)
+      .then((trip) => {
+        setForm({
+          truck_id: String(trip.truck_id || ""),
+          source_id: String(trip.source_id || ""),
+          customer_ids: trip.customer_ids?.length
+            ? trip.customer_ids
+            : trip.customer_id
+              ? [trip.customer_id]
+              : [],
+          mpp_bill_no: trip.mpp_bill_no || "",
+          meter_start: trip.meter_start ?? "",
+          meter_end: trip.meter_end ?? "",
+          diesel_used: trip.diesel_used ?? "",
+          loading_amount: trip.loading_amount ?? "",
+          unloading_amount: trip.unloading_amount ?? "",
+          maintenance_hisab_phanna: trip.maintenance_hisab_phanna ?? "",
+          maintenance_rokhar: trip.maintenance_rokhar ?? "",
+          grease_expense: trip.grease_expense ?? "",
+          trip_bhatta_override: trip.trip_bhatta ?? "",
+          fooding_override: trip.fooding != null ? String(trip.fooding) : "",
+          road_tax: trip.road_tax ?? "",
+          scrap_tax: trip.scrap_tax ?? "",
+          tyre_expense: trip.tyre_expense ?? "",
+          police_tax: trip.police_tax ?? "",
+          phone_expense: trip.phone_expense ?? "",
+          freight_amount: trip.freight_amount ?? "",
+          backload_freight_amount: trip.backload_freight_amount ?? "",
+          remarks: trip.remarks || "",
+          backload_id: trip.backload_supplier_id
+            ? String(trip.backload_supplier_id)
+            : "",
+          backload_bill_no: trip.backload_bill_no || "",
+          backload_loading_amount: trip.backload_loading_amount ?? "",
+          backload_unloading_amount: trip.backload_unloading_amount ?? "",
+          backload_fooding: trip.backload_fooding ?? "",
+          backload_bhatta: trip.backload_bhatta ?? "",
+        });
+        const toStrBS = (bs) => ({
+          year: String(bs.year),
+          month: String(bs.month),
+          day: String(bs.day),
+        });
+        if (trip.start_date) setStartBS(adToBS(trip.start_date));
+        console.log("adToBS result:", adToBS(trip.start_date));
+        if (trip.end_date) setEndBS(adToBS(trip.end_date));
+        if (trip.backload_start_date)
+          setBackloadStartBS(adToBS(trip.backload_start_date));
+        if (trip.backload_end_date)
+          setBackloadEndBS(adToBS(trip.backload_end_date));
 
+        // per-customer pieces/freight stored in DB as JSON columns
+        if (trip.customer_pieces) setCustomerPieces(trip.customer_pieces);
+        if (trip.customer_freight) setCustomerFreight(trip.customer_freight);
+      })
+      .catch(() => toast.error("Failed to load trip data"));
+  }, [editTripId]);
   return (
     <form
       onSubmit={handleSubmit}
@@ -486,7 +1116,9 @@ export default function TripForm({ onSuccess }) {
       }}
     >
       <div ref={topRef} />
-      <h2 style={styles.heading}>New Trip Entry</h2>
+      <h2 style={styles.heading}>
+        {editTripId ? `Edit Trip #${editTripId}` : "New Trip Entry"}
+      </h2>
 
       {/* ── 1. Truck ── */}
       <Section title="1. Truck & Driver">
@@ -582,6 +1214,7 @@ export default function TripForm({ onSuccess }) {
             customers={customers}
             selectedIds={form.customer_ids}
             onToggle={toggleCustomer}
+            onCustomerCreated={handleCustomerCreated}
           />
           {selectedCustomers.length === 0 && (
             <span style={{ fontSize: 11, color: "#e07000", marginTop: 4 }}>
@@ -904,11 +1537,22 @@ export default function TripForm({ onSuccess }) {
           <Field label="Days">
             <input value={numDays ?? "—"} readOnly style={styles.readOnly} />
           </Field>
-          <Field label={`Fooding (NPR ${FOODING_RATE}/day)`}>
+          <Field
+            label={`Fooding (NPR ${FOODING_RATE}/day)`}
+            hint="Edit to override auto"
+          >
             <input
-              value={fooding ? fmt(fooding) : "—"}
-              readOnly
-              style={styles.readOnly}
+              type="number"
+              name="fooding_override"
+              value={
+                form.fooding_override !== ""
+                  ? form.fooding_override
+                  : foodingAuto || ""
+              }
+              onChange={handleChange}
+              onKeyDown={handleEnter}
+              style={styles.input}
+              placeholder={String(foodingAuto || 0)}
             />
           </Field>
           <Field label={`Trip Bhatta (NPR ${BHATTA_RATE}/trip)`}>
@@ -1052,20 +1696,13 @@ export default function TripForm({ onSuccess }) {
       {/* ── 11. Backload / Return ── CHANGE 2: scrap_tax moved here */}
       <Section title="11. Backload / Return Trip">
         <Field label="Backload Supplier">
-          <select
-            name="backload_id"
+          <BackloadSupplierSelect
+            backloads={backloads}
             value={form.backload_id}
             onChange={handleChange}
+            onBackloadCreated={handleBackloadCreated}
             onKeyDown={handleEnter}
-            style={styles.input}
-          >
-            <option value="">No backload</option>
-            {backloads.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.description}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         {/* CHANGE 2: Scrap Tax always visible in Section 11 */}
@@ -1365,7 +2002,13 @@ export default function TripForm({ onSuccess }) {
       </Section>
 
       <button type="submit" disabled={submitting} style={styles.submitBtn}>
-        {submitting ? "Saving..." : "Save Trip Entry"}
+        {submitting
+          ? editTripId
+            ? "Updating..."
+            : "Saving..."
+          : editTripId
+            ? "Update Trip"
+            : "Save Trip Entry"}
       </button>
     </form>
   );
@@ -1595,5 +2238,70 @@ const styles = {
     fontSize: 12.5,
     color: "#aaa",
     textAlign: "center",
+  },
+};
+const addFormStyles = {
+  wrap: {
+    position: "absolute",
+    top: "calc(100% + 4px)",
+    left: 0,
+    right: 0,
+    background: "#fff",
+    border: "1px solid #c0ccd8",
+    borderRadius: 8,
+    boxShadow: "0 4px 20px rgba(0,0,0,0.14)",
+    zIndex: 999,
+    padding: "14px 16px",
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+    borderBottom: "1px solid #e8eef4",
+    paddingBottom: 8,
+  },
+  title: { fontWeight: 700, fontSize: 13, color: "#1a3a5c" },
+  closeBtn: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    fontSize: 16,
+    color: "#999",
+    padding: 0,
+  },
+  fieldWrap: { display: "flex", flexDirection: "column", marginBottom: 10 },
+  label: { fontSize: 11, color: "#555", marginBottom: 4, fontWeight: 500 },
+  error: {
+    fontSize: 12,
+    color: "#cc0000",
+    marginBottom: 8,
+    background: "#fff0f0",
+    padding: "6px 10px",
+    borderRadius: 4,
+  },
+  actions: {
+    display: "flex",
+    gap: 8,
+    justifyContent: "flex-end",
+    marginTop: 4,
+  },
+  cancelBtn: {
+    padding: "7px 16px",
+    background: "#f0f0f0",
+    border: "1px solid #ccc",
+    borderRadius: 5,
+    fontSize: 13,
+    cursor: "pointer",
+  },
+  saveBtn: {
+    padding: "7px 16px",
+    background: "#1a3a5c",
+    color: "#fff",
+    border: "none",
+    borderRadius: 5,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
   },
 };
