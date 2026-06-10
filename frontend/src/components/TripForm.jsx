@@ -77,8 +77,8 @@ function CustomerSearchInput({
   );
 
   const exactMatch = customers.some(
-    (c) => c.name.toLowerCase() === query.toLowerCase(),
-  );
+  (c) => c.name?.toLowerCase() === query.toLowerCase()
+);
   const showAddOption = query.trim().length > 0 && !exactMatch;
 
   useEffect(() => {
