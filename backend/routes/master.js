@@ -138,7 +138,7 @@ router.get('/customers/rates', async (req, res) => {
   }
 });
 
-module.exports = router;
+
 
 
 router.get('/settings', async (req, res) => {
@@ -172,3 +172,4 @@ router.post('/settings', async (req, res) => {
 });
 
 
+module.exports = router;
