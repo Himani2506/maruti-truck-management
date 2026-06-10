@@ -60,6 +60,8 @@ const ALL_COLS = [
   { key: "total_expenses", label: "Total Exp", always: true },
   { key: "freight_amount", label: "Freight", always: true },
   { key: "backload_freight_amount", label: "Backload Freight" },
+  { key: "effective_backload_freight", label: "BL Freight (net)" },
+  { key: "total_freight", label: "Total Freight" },
   { key: "surplus", label: "Surplus", always: true },
   { key: "backload_description", label: "Backload" },
   { key: "status", label: "Status", always: true },
@@ -82,6 +84,9 @@ const DEFAULT_VISIBLE = new Set([
   "loading_amount",
   "unloading_amount",
   "maintenance_hisab_phanna",
+  "backload_freight_amount",
+  "effective_backload_freight",
+  "total_freight",
   "pieces", // ← add
   "rate_per_piece",
   "maintenance_rokhar",
@@ -243,6 +248,21 @@ export default function AdminTrips({ onEdit }) {
     backload_unloading_amount: sum("backload_unloading_amount"),
     backload_fooding: sum("backload_fooding"),
     backload_bhatta: sum("backload_bhatta"),
+    effective_backload_freight: trips.reduce(
+      (a, t) =>
+        a +
+        (parseFloat(t.backload_freight_amount) || 0) +
+        (parseFloat(t.scrap_tax) || 0),
+      0,
+    ),
+    total_freight: trips.reduce(
+      (a, t) =>
+        a +
+        (parseFloat(t.freight_amount) || 0) +
+        (parseFloat(t.backload_freight_amount) || 0) +
+        (parseFloat(t.scrap_tax) || 0),
+      0,
+    ),
     maintenance_rokhar: sum("maintenance_rokhar"),
     grease_expense: sum("grease_expense"),
     road_tax: sum("road_tax"),
@@ -436,6 +456,20 @@ export default function AdminTrips({ onEdit }) {
         return fmt(t.tyre_expense);
       case "backload_freight_amount":
         return fmt(t.backload_freight_amount);
+      case "effective_backload_freight": {
+        const eff =
+          (parseFloat(t.backload_freight_amount) || 0) +
+          (parseFloat(t.scrap_tax) || 0);
+        return eff ? fmt(eff) : "—";
+      }
+
+      case "total_freight": {
+        const total =
+          (parseFloat(t.freight_amount) || 0) +
+          (parseFloat(t.backload_freight_amount) || 0) +
+          (parseFloat(t.scrap_tax) || 0);
+        return <b style={{ color: "#1a3a5c" }}>{total ? fmt(total) : "—"}</b>;
+      }
       case "total_expenses":
         return <b>{fmt(t.total_expenses)}</b>;
       case "freight_amount":
@@ -502,6 +536,8 @@ export default function AdminTrips({ onEdit }) {
       "road_tax",
       "scrap_tax",
       "backload_freight_amount",
+      "effective_backload_freight",
+      "total_freight",
       "tyre_expense",
       "total_expenses",
       "freight_amount",
@@ -699,7 +735,19 @@ export default function AdminTrips({ onEdit }) {
       {trips.length > 0 && (
         <div style={styles.pills}>
           <Pill label="Total Expenses" value={fmt(totals.total_expenses)} />
-          <Pill label="Total Freight" value={fmt(totals.freight_amount)} />
+          <Pill
+            label="Total Freight"
+            value={fmt(
+              trips.reduce(
+                (a, t) =>
+                  a +
+                  (parseFloat(t.freight_amount) || 0) +
+                  (parseFloat(t.backload_freight_amount) || 0) +
+                  (parseFloat(t.scrap_tax) || 0),
+                0,
+              ),
+            )}
+          />
           <Pill
             label="Total Surplus"
             value={fmt(totals.surplus)}
@@ -749,7 +797,7 @@ export default function AdminTrips({ onEdit }) {
                   // Change to b.start_date.localeCompare(a.start_date) for descending.
                   if (!a.start_date) return 1;
                   if (!b.start_date) return -1;
-                  return a.start_date.localeCompare(b.start_date);
+                  return a.start_date.localeCompare(a.start_date);
                 })
                 .map((t, i) => (
                   <tr

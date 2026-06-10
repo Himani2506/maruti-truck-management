@@ -59,7 +59,6 @@ function CustomerSearchInput({ customers, selectedIds, onToggle }) {
       c.name.toLowerCase().includes(query.toLowerCase()),
   );
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target)) {
@@ -103,7 +102,6 @@ function CustomerSearchInput({ customers, selectedIds, onToggle }) {
 
   return (
     <div ref={wrapRef} style={{ position: "relative" }}>
-      {/* Selected tags */}
       {selectedCustomers.length > 0 && (
         <div style={styles.tagRow}>
           {selectedCustomers.map((c, i) => (
@@ -125,7 +123,6 @@ function CustomerSearchInput({ customers, selectedIds, onToggle }) {
         </div>
       )}
 
-      {/* Search input */}
       <div style={styles.searchWrap}>
         <input
           ref={inputRef}
@@ -160,7 +157,6 @@ function CustomerSearchInput({ customers, selectedIds, onToggle }) {
         )}
       </div>
 
-      {/* Dropdown */}
       {open && (
         <div ref={dropdownRef} style={styles.dropdown}>
           {filtered.length === 0 ? (
@@ -176,7 +172,7 @@ function CustomerSearchInput({ customers, selectedIds, onToggle }) {
               <div
                 key={c.id}
                 onMouseDown={(e) => {
-                  e.preventDefault(); // prevent blur before click fires
+                  e.preventDefault();
                   select(c);
                 }}
                 onMouseEnter={() => setHighlighted(i)}
@@ -217,8 +213,18 @@ export default function TripForm({ onSuccess }) {
   const [customerPieces, setCustomerPieces] = useState({});
   const [customerFreight, setCustomerFreight] = useState({});
 
-
   const topRef = useRef(null);
+
+  // ── CHANGE 3: Disable scroll-to-change on all number inputs ──
+  useEffect(() => {
+    const handler = (e) => {
+      if (document.activeElement?.type === "number") {
+        document.activeElement.blur();
+      }
+    };
+    document.addEventListener("wheel", handler, { passive: true });
+    return () => document.removeEventListener("wheel", handler);
+  }, []);
 
   const startAD = bsToADString(startBS.year, startBS.month, startBS.day);
   const endAD = bsToADString(endBS.year, endBS.month, endBS.day);
@@ -265,6 +271,7 @@ export default function TripForm({ onSuccess }) {
       ? parseFloat(form.trip_bhatta_override) || 0
       : BHATTA_RATE;
 
+  // CHANGE 2: scrap_tax removed from totalExpenses — it now belongs to backload
   const totalExpenses =
     (dieselCost || 0) +
     fooding +
@@ -275,7 +282,6 @@ export default function TripForm({ onSuccess }) {
     n("maintenance_rokhar") +
     n("grease_expense") +
     n("road_tax") +
-    n("scrap_tax") +
     n("tyre_expense") +
     n("police_tax") +
     n("phone_expense");
@@ -315,17 +321,28 @@ export default function TripForm({ onSuccess }) {
         ? BHATTA_RATE
         : 0;
 
+  // CHANGE 2: scrap_tax added into backloadCashExpense
   const backloadCashExpense =
     (parseFloat(form.backload_loading_amount) || 0) +
     (parseFloat(form.backload_unloading_amount) || 0) +
     effectiveBackloadBhatta +
-    effectiveBackloadFooding;
+    effectiveBackloadFooding +
+    n("scrap_tax");
 
   const totalCashExpenseWithBackload = totalCashExpense + backloadCashExpense;
 
+  // CHANGE 1: total freight across all selected customers
+  const totalFreightDisplay =
+    (parseFloat(form.freight_amount) || 0) +
+    (form.customer_ids || [])
+      .slice(1)
+      .reduce((sum, id) => sum + (parseFloat(customerFreight[id]) || 0), 0);
+
+  const effectiveBackloadFreight =
+  (parseFloat(form.backload_freight_amount) || 0) + n("scrap_tax");
+
   const totalRevenue =
-    Number(form.freight_amount || 0) +
-    Number(form.backload_freight_amount || 0);
+    totalFreightDisplay + Number(form.backload_freight_amount || 0);
 
   const surplus = form.freight_amount
     ? parseFloat((totalRevenue - totalExpenses).toFixed(2))
@@ -334,11 +351,11 @@ export default function TripForm({ onSuccess }) {
   const backloadSurplus = form.backload_freight_amount
     ? parseFloat(
         (
-          parseFloat(form.backload_freight_amount) -
+          effectiveBackloadFreight -
           (parseFloat(form.backload_loading_amount) || 0) -
           (parseFloat(form.backload_unloading_amount) || 0) -
           effectiveBackloadBhatta -
-          effectiveBackloadFooding
+          effectiveBackloadFooding 
         ).toFixed(2),
       )
     : null;
@@ -384,7 +401,6 @@ export default function TripForm({ onSuccess }) {
   };
 
   const toggleCustomer = (id) => {
-    // id arrives as a number from CustomerSearchInput
     setForm((prev) => {
       const existing = prev.customer_ids || [];
       if (existing.includes(id)) {
@@ -561,7 +577,6 @@ export default function TripForm({ onSuccess }) {
           </InfoBox>
         )}
 
-        {/* Customer search + tag input */}
         <Field label="Customer(s) (Destination) *">
           <CustomerSearchInput
             customers={customers}
@@ -575,7 +590,6 @@ export default function TripForm({ onSuccess }) {
           )}
         </Field>
 
-        {/* Info rows for each selected customer */}
         {selectedCustomers.map((c, i) => (
           <div
             key={c.id}
@@ -704,9 +718,9 @@ export default function TripForm({ onSuccess }) {
           </div>
         ))}
 
-        {/* Freight amount — shown once a customer is selected */}
+        {/* Freight amount for primary customer */}
         {selectedCustomers.length > 0 && (
-          <Field label="Freight Amount (NPR)">
+          <Field label="Freight Amount — Primary Customer (NPR)">
             <input
               type="number"
               name="freight_amount"
@@ -729,6 +743,33 @@ export default function TripForm({ onSuccess }) {
                 {Number(firstCustomer.freight_actual).toLocaleString()}
               </span>
             )}
+          </Field>
+        )}
+
+        {/* CHANGE 1: Total freight box — only shown when 2+ customers */}
+        {selectedCustomers.length > 1 && (
+          <Field label="Total Freight — All Customers (Auto)">
+            <input
+              value={totalFreightDisplay ? fmt(totalFreightDisplay) : "—"}
+              readOnly
+              style={{
+                ...styles.readOnly,
+                fontWeight: 700,
+                fontSize: 15,
+                background: "#e8f5e9",
+                color: "#1b5e20",
+                border: "1px solid #a5d6a7",
+              }}
+            />
+            <span style={{ fontSize: 11, color: "#555", marginTop: 3 }}>
+              Primary ({fmt(parseFloat(form.freight_amount) || 0)})
+              {(form.customer_ids || []).slice(1).map((id) => {
+                const c = customers.find((x) => x.id === id);
+                return c
+                  ? ` + ${c.name.split(" ")[0]} (${fmt(parseFloat(customerFreight[id]) || 0)})`
+                  : "";
+              })}
+            </span>
           </Field>
         )}
       </Section>
@@ -943,7 +984,7 @@ export default function TripForm({ onSuccess }) {
         </Row>
       </Section>
 
-      {/* ── 10. Other Expenses ── */}
+      {/* ── 10. Other Expenses ── CHANGE 2: scrap_tax removed from here */}
       <Section title="10. Other Expenses">
         <Row>
           <Field label="Grease Expense (NPR)">
@@ -970,17 +1011,6 @@ export default function TripForm({ onSuccess }) {
           </Field>
         </Row>
         <Row>
-          <Field label="Scrap Tax (NPR)">
-            <input
-              type="number"
-              name="scrap_tax"
-              value={form.scrap_tax}
-              onChange={handleChange}
-              onKeyDown={handleEnter}
-              style={styles.input}
-              placeholder="0"
-            />
-          </Field>
           <Field label="Tyre Expense (NPR)">
             <input
               type="number"
@@ -992,8 +1022,6 @@ export default function TripForm({ onSuccess }) {
               placeholder="0"
             />
           </Field>
-        </Row>
-        <Row>
           <Field label="Police Tax (NPR)">
             <input
               type="number"
@@ -1005,6 +1033,8 @@ export default function TripForm({ onSuccess }) {
               placeholder="0"
             />
           </Field>
+        </Row>
+        <Row>
           <Field label="Phone Expense (NPR)">
             <input
               type="number"
@@ -1019,7 +1049,7 @@ export default function TripForm({ onSuccess }) {
         </Row>
       </Section>
 
-      {/* ── 11. Backload / Return ── */}
+      {/* ── 11. Backload / Return ── CHANGE 2: scrap_tax moved here */}
       <Section title="11. Backload / Return Trip">
         <Field label="Backload Supplier">
           <select
@@ -1036,6 +1066,19 @@ export default function TripForm({ onSuccess }) {
               </option>
             ))}
           </select>
+        </Field>
+
+        {/* CHANGE 2: Scrap Tax always visible in Section 11 */}
+        <Field label="Scrap Tax (NPR)" hint="Applied to backload / return">
+          <input
+            type="number"
+            name="scrap_tax"
+            value={form.scrap_tax}
+            onChange={handleChange}
+            onKeyDown={handleEnter}
+            style={styles.input}
+            placeholder="0"
+          />
         </Field>
 
         {form.backload_id && (
@@ -1146,6 +1189,8 @@ export default function TripForm({ onSuccess }) {
               </Field>
             </Row>
             <InfoBox color="#f0f6ff" border="#a8c0e8">
+              <b>Effective Backload Freight:</b> {fmt(effectiveBackloadFreight)}
+              &nbsp;&nbsp;
               <b>Backload Cash Expense:</b> {fmt(backloadCashExpense)}
               &nbsp;&nbsp;
               {form.backload_freight_amount && (
@@ -1181,10 +1226,16 @@ export default function TripForm({ onSuccess }) {
             />
             <BLine label="Grease" value={fmt(n("grease_expense") || null)} />
             <BLine label="Road Tax" value={fmt(n("road_tax") || null)} />
-            <BLine label="Scrap Tax" value={fmt(n("scrap_tax") || null)} />
             <BLine label="Tyre" value={fmt(n("tyre_expense") || null)} />
             <BLine label="Police Tax" value={fmt(n("police_tax") || null)} />
             <BLine label="Phone" value={fmt(n("phone_expense") || null)} />
+            {/* CHANGE 2: Scrap Tax shown under backload in breakdown */}
+            {n("scrap_tax") > 0 && (
+              <BLine
+                label="Scrap Tax (BL)"
+                value={fmt(n("scrap_tax") || null)}
+              />
+            )}
             {form.backload_id && (
               <>
                 <BLine
@@ -1472,7 +1523,6 @@ const styles = {
     cursor: "pointer",
     marginTop: 10,
   },
-  // CustomerSearchInput styles
   tagRow: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 },
   tag: {
     display: "flex",

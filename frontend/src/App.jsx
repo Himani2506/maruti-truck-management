@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import Layout       from './components/Layout';
 import HomePage     from './pages/HomePage';
 import TrucksPage   from './pages/trucks/TrucksPage';
+import ScrapManagement from './pages/ScrapManagement';
 
 export default function App() {
   return (
@@ -13,7 +14,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
           <Route path="trucks/*" element={<TrucksPage />} />
-          <Route path="scrap"        element={<ComingSoon title="Scrap Management" />} />
+          <Route path="scrap" element={<ScrapManagement />} />
           <Route path="diesel"       element={<ComingSoon title="Diesel Inventory" />} />
           <Route path="dashboard"    element={<ComingSoon title="Dashboard & Insights" />} />
           <Route path="drivers"      element={<ComingSoon title="Driver Advances" />} />
