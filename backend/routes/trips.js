@@ -128,6 +128,8 @@ router.get("/", async (req, res) => {
   }
 });
 
+
+
 // GET single trip
 router.get("/:id", async (req, res) => {
   try {

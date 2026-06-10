@@ -30,6 +30,10 @@ export const updateScrapEntry    = (id, data) => api.put(`/scrap/${id}`, data).t
 export const overrideScrapEntry = (id, data) => api.put(`/scrap/${id}/override`, data).then(r => r.data);
 export const deleteScrapEntry  = (id)       => api.delete(`/scrap/${id}`).then(r => r.data);
 export const getScrapPartySheet  = (name)     => api.get(`/scrap/party-sheet/${encodeURIComponent(name)}`).then(r => r.data);
+export const createBackload = (data) =>
+  axios.post("/api/backloads", data).then((r) => r.data);
+export const createCustomer = (data) =>
+  axios.post("/api/customers", data).then((r) => r.data);
 
 
 

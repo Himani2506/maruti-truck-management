@@ -32,11 +32,58 @@ router.get('/customers', async (req, res) => {
   }
 });
 
+// POST create customer
+router.post('/customers', async (req, res) => {
+  try {
+    const { name, destination_address, freight_actual } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: "Name is required" });
+
+    const existing = await pool.query(
+      'SELECT id FROM customers WHERE LOWER(name) = LOWER($1)',
+      [name.trim()]
+    );
+    if (existing.rows.length)
+      return res.status(409).json({ error: "Customer with this name already exists" });
+
+    const result = await pool.query(
+      `INSERT INTO customers (name, destination_address, freight_actual)
+       VALUES ($1, $2, $3) RETURNING *`,
+      [name.trim(), destination_address?.trim() || null, parseFloat(freight_actual) || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET all backloads
 router.get('/backloads', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM backloads ORDER BY description');
     res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST create backload supplier
+router.post('/backloads', async (req, res) => {
+  try {
+    const { description } = req.body;
+    if (!description?.trim()) return res.status(400).json({ error: "Description is required" });
+
+    const existing = await pool.query(
+      'SELECT id FROM backloads WHERE LOWER(description) = LOWER($1)',
+      [description.trim()]
+    );
+    if (existing.rows.length)
+      return res.status(409).json({ error: "Supplier already exists" });
+
+    const result = await pool.query(
+      `INSERT INTO backloads (description) VALUES ($1) RETURNING *`,
+      [description.trim()]
+    );
+    res.status(201).json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

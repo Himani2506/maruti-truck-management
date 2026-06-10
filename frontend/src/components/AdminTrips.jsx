@@ -10,7 +10,7 @@ import {
 import NepaliDatePicker from "./NepaliDatePicker";
 import { adToBS, formatBSShort, bsToADString } from "../nepaliDate";
 import toast from "react-hot-toast";
-
+import TripForm from "./TripForm";
 const STATUS_COLOR = {
   open: { bg: "#fff3cd", color: "#856404" },
   completed: { bg: "#d1ecf1", color: "#0c5460" },
@@ -116,6 +116,7 @@ export default function AdminTrips({ onEdit }) {
   const [loading, setLoading] = useState(true);
   const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE);
   const [showColPicker, setShowColPicker] = useState(false);
+  const [editTripId, setEditTripId] = useState(null);
   const [customerPopup, setCustomerPopup] = useState(null);
   const [filters, setFilters] = useState({
     truck_id: "",
@@ -383,6 +384,20 @@ export default function AdminTrips({ onEdit }) {
         ) : (
           "—"
         );
+
+      case "_actions":
+  return (
+    <div style={{ display: "flex", gap: 4 }}>
+      <button onClick={() => setEditTripId(t.id)} style={styles.editBtn}>
+        Edit
+      </button>
+      {t.status !== "verified" && (
+        <button onClick={() => handleVerify(t.id)} style={styles.verifyBtn}>
+          ✓
+        </button>
+      )}
+    </div>
+  );
       case "diesel_needed":
         return fmtL(t.diesel_needed);
       case "diesel_used":
@@ -894,6 +909,24 @@ export default function AdminTrips({ onEdit }) {
           ))}
         </div>
       )}
+
+    {editTripId && (
+  <div style={modalStyles.overlay} onClick={(e) => { if (e.target === e.currentTarget) setEditTripId(null); }}>
+    <div style={modalStyles.box}>
+      <div style={modalStyles.header}>
+        <span style={modalStyles.title}>✏️ Edit Trip #{editTripId}</span>
+        <button style={modalStyles.closeBtn} onClick={() => setEditTripId(null)}>✕</button>
+      </div>
+      <div style={modalStyles.body}>
+        <TripForm
+          key={editTripId}
+          editTripId={editTripId}
+          onSuccess={() => { setEditTripId(null); load(); }}
+        />
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
@@ -1102,5 +1135,55 @@ const styles = {
     gap: 4,
     maxWidth: 180,
     overflow: "hidden",
+  },
+};
+const modalStyles = {
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.45)",
+    zIndex: 1000,
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    overflowY: "auto",
+    padding: "24px 16px",
+  },
+  box: {
+    background: "#fff",
+    borderRadius: 12,
+    width: "100%",
+    maxWidth: 900,
+    boxShadow: "0 8px 40px rgba(0,0,0,0.2)",
+    display: "flex",
+    flexDirection: "column",
+    maxHeight: "90vh",
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "16px 24px",
+    borderBottom: "1px solid #e8eef4",
+    position: "sticky",
+    top: 0,
+    background: "#fff",
+    borderRadius: "12px 12px 0 0",
+    zIndex: 1,
+  },
+  title: { fontWeight: 700, fontSize: 16, color: "#1a3a5c" },
+  closeBtn: {
+    background: "none",
+    border: "none",
+    fontSize: 20,
+    cursor: "pointer",
+    color: "#888",
+    lineHeight: 1,
+    padding: 0,
+  },
+  body: {
+    overflowY: "auto",
+    padding: "0 8px 16px",
+    flex: 1,
   },
 };

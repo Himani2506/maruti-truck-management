@@ -6,8 +6,16 @@ export default function NepaliDatePicker({ label, value, onChange, required = fa
 
   // Sync back if parent resets value
   useEffect(() => {
-    if (!value?.year) setRaw('');
-  }, [value?.year]);
+  if (!value?.year) {
+    setRaw('');
+  } else {
+    // Rebuild the raw string from the BS value so the input shows it
+    const dd = String(value.day).padStart(2, '0');
+    const mm = String(value.month).padStart(2, '0');
+    const yyyy = String(value.year);
+    setRaw(`${dd}${mm}${yyyy}`);
+  }
+}, [value?.year, value?.month, value?.day]);
 
   const handleChange = (e) => {
     const val = e.target.value.replace(/\D/g, '').slice(0, 8);

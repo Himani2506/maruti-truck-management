@@ -5,11 +5,24 @@ import AdminSettings from '../../components/AdminSettings';
 import { useOutletContext } from 'react-router-dom';
 
 export default function TrucksPage() {
-  const [view, setView]         = useState('driver');
+  const [view, setView]             = useState('driver');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [editTripId, setEditTripId] = useState(null);
   const { onTripSaved } = useOutletContext();
+
   const refresh = () => setRefreshKey(k => k + 1);
 
+  const handleEdit = (id) => {
+    setEditTripId(id);
+    setView('driver');
+  };
+
+  const handleSuccess = () => {
+    setEditTripId(null);
+    refresh();
+    onTripSaved();
+    setView('admin');
+  };
 
   const tabs = [
     { id: 'driver',   label: '🚛 New Trip Entry' },
@@ -23,16 +36,26 @@ export default function TrucksPage() {
         {tabs.map(tab => (
           <button
             key={tab.id}
-            onClick={() => { setView(tab.id); if (tab.id === 'admin') refresh(); }}
+            onClick={() => {
+              if (tab.id !== 'driver') setEditTripId(null);
+              setView(tab.id);
+              if (tab.id === 'admin') refresh();
+            }}
             style={{ ...s.tab, ...(view === tab.id ? s.tabActive : {}) }}
           >
-            {tab.label}
+            {tab.id === 'driver' && editTripId ? '✏️ Edit Trip' : tab.label}
           </button>
         ))}
       </nav>
 
-      {view === 'driver' && <TripForm onSuccess={() => { refresh(); onTripSaved(); }} />}
-      {view === 'admin'    && <AdminTrips key={refreshKey} onEdit={(id) => alert(`Edit trip #${id}`)} />}
+      {view === 'driver' && (
+        <TripForm
+          key={editTripId ?? 'new'}
+          editTripId={editTripId}
+          onSuccess={handleSuccess}
+        />
+      )}
+      {view === 'admin' && <AdminTrips key={refreshKey} onEdit={(id) => {}} />}
       {view === 'settings' && <AdminSettings />}
     </div>
   );
