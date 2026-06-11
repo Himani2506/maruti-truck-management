@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
-const API = import.meta.env.REACT_APP_API_URL || "";
+const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:4000";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -14,7 +14,7 @@ export default function LoginPage() {
   const handleLogin = async () => {
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API}/auth/login`, {
+      const res = await fetch(`${BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
