@@ -1,21 +1,23 @@
-import React, { useState } from 'react';
-import { Outlet, NavLink } from 'react-router-dom';
-import AlertsBell from './AlertsBell';
+import React, { useState } from "react";
+import { Outlet, NavLink } from "react-router-dom";
+import AlertsBell from "./AlertsBell";
+import { useAuth } from "../context/AuthContext";
+// Replace the navLinks array at the top
 const navLinks = [
-  { to: "/", label: "Overview" },
-  { to: "/trucks", label: "Truck Management" },
-  { to: "/scrap", label: "Scrap Management" },
-  { to: "/diesel", label: "Diesel Inventory" },
-  { to: "/dashboard", label: "Dashboard" },
-  { to: "/drivers", label: "Driver Advances" },
-  { to: "/maintenance", label: "Maintenance Log" },
-  { to: "/customers", label: "Customer Ledger" },
+  { to: "/", label: "Overview", adminOnly: false },
+  { to: "/trucks", label: "Truck Management", adminOnly: false },
+  { to: "/scrap", label: "Scrap Management", adminOnly: true },
+  { to: "/diesel", label: "Diesel Inventory", adminOnly: true },
+  { to: "/dashboard", label: "Dashboard", adminOnly: true },
+  { to: "/drivers", label: "Driver Advances", adminOnly: true },
+  { to: "/maintenance", label: "Maintenance Log", adminOnly: true },
+  { to: "/customers", label: "Customer Ledger", adminOnly: true },
 ];
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [tripSaveCount, setTripSaveCount] = useState(0);
-
+  const { isAdmin, auth, logout } = useAuth();
   return (
     <div style={s.shell}>
       <aside style={{ ...s.sidebar, width: collapsed ? 56 : 220 }}>
@@ -32,21 +34,33 @@ export default function Layout() {
         <div style={s.divider} />
 
         <nav style={s.nav}>
-          {navLinks.map((l) => (
-            <NavLink
-              key={l.to}
-              to={l.to}
-              end={l.to === "/"}
-              style={({ isActive }) => ({
-                ...s.link,
-                ...(isActive ? s.linkActive : {}),
-              })}
-            >
-              <span style={s.dot} />
-              {!collapsed && <span>{l.label}</span>}
-            </NavLink>
-          ))}
+          {navLinks
+            .filter((l) => !l.adminOnly || isAdmin)
+            .map((l) => (
+              <NavLink
+                key={l.to}
+                to={l.to}
+                end={l.to === "/"}
+                style={({ isActive }) => ({
+                  ...s.link,
+                  ...(isActive ? s.linkActive : {}),
+                })}
+              >
+                <span style={s.dot} />
+                {!collapsed && <span>{l.label}</span>}
+              </NavLink>
+            ))}
         </nav>
+        {/* 👇 Role badge + logout — add this before collapseBtn */}
+        {!collapsed && (
+          <div style={s.userBlock}>
+            <div style={s.userName}>{auth?.username}</div>
+            <div style={s.userRole}>{auth?.role}</div>
+            <button style={s.logoutBtn} onClick={logout}>
+              Sign out
+            </button>
+          </div>
+        )}
 
         <button style={s.collapseBtn} onClick={() => setCollapsed((c) => !c)}>
           {collapsed ? "»" : "«"}
@@ -71,7 +85,9 @@ export default function Layout() {
           </div>
         </header>
         <main style={s.main}>
-          <Outlet context={{ onTripSaved: () => setTripSaveCount(c => c + 1) }} />
+          <Outlet
+            context={{ onTripSaved: () => setTripSaveCount((c) => c + 1) }}
+          />
         </main>
       </div>
     </div>
@@ -175,6 +191,40 @@ const s = {
     fontSize: 13,
     color: "rgba(255,255,255,0.5)",
     textAlign: "center",
+  },
+  userBlock: {
+    margin: "0 8px 8px",
+    padding: "10px 12px",
+    background: "rgba(255,255,255,0.08)",
+    borderRadius: 8,
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+  },
+  userName: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#fff",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  userRole: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.5)",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+  },
+  logoutBtn: {
+    marginTop: 6,
+    padding: "5px 0",
+    background: "rgba(255,255,255,0.1)",
+    border: "none",
+    borderRadius: 5,
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 12,
+    cursor: "pointer",
+    width: "100%",
   },
   body: {
     flex: 1,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import toast from "react-hot-toast";
 
@@ -68,7 +69,7 @@ export default function AdminSettings() {
         Loading settings...
       </p>
     );
-
+  
   return (
     <div style={styles.container}>
       {/* ── Rate Settings ── */}
@@ -361,6 +362,8 @@ export default function AdminSettings() {
             />
           </div>
         )}
+
+       <CreateUserForm />  
       </div>
     </div>
   );
@@ -587,4 +590,80 @@ const styles = {
     margin: "4px 0 2px",
   },
   pillSub: { fontSize: 11, color: "#aaa" },
+};
+
+function CreateUserForm() {
+  const [form, setForm] = useState({ username: "", password: "", role: "viewer" });
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const update = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+
+  const handleCreate = async () => {
+    if (!form.username || !form.password)
+      return setError("Username and password are required");
+    setLoading(true); setError(""); setSuccess("");
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${BASE_URL}/auth/signup`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create user");
+      setSuccess(`✓ User "${data.user.username}" created as ${data.user.role}`);
+      setForm({ username: "", password: "", role: "viewer" });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={cs.card}>
+      <h2 style={{ ...styles.heading, marginBottom: 4 }}>👤 Create New User</h2>
+      <p style={styles.sub}>Only admins can create accounts. Viewers cannot access this page.</p>
+
+      <div style={cs.row}>
+        <div style={cs.field}>
+          <label style={cs.label}>Username</label>
+          <input style={cs.input} name="username" value={form.username}
+            onChange={update} placeholder="e.g. ram_driver" />
+        </div>
+        <div style={cs.field}>
+          <label style={cs.label}>Password</label>
+          <input style={cs.input} type="password" name="password"
+            value={form.password} onChange={update} placeholder="Min 6 chars" />
+        </div>
+        <div style={cs.field}>
+          <label style={cs.label}>Role</label>
+          <select style={cs.input} name="role" value={form.role} onChange={update}>
+            <option value="viewer">Viewer — can view & add trips</option>
+            <option value="admin">Admin — full access</option>
+          </select>
+        </div>
+      </div>
+
+      {error   && <p style={{ color: "#cc3333", fontSize: 13, margin: "8px 0" }}>{error}</p>}
+      {success && <p style={{ color: "#166534", fontSize: 13, margin: "8px 0" }}>{success}</p>}
+
+      <button style={styles.saveBtn} onClick={handleCreate} disabled={loading}>
+        {loading ? "Creating..." : "➕ Create User"}
+      </button>
+    </div>
+  );
+}
+
+const cs = {
+  card:  { borderTop: "2px solid #e8eef4", paddingTop: 32, marginTop: 8 },
+  row:   { display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 },
+  field: { display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 180 },
+  label: { fontSize: 11, fontWeight: 600, color: "#666", textTransform: "uppercase" },
+  input: { padding: "9px 10px", border: "1px solid #d0dce8", borderRadius: 6, fontSize: 13 },
 };

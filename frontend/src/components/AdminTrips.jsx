@@ -112,7 +112,7 @@ const DEFAULT_VISIBLE = new Set([
   "_actions",
 ]);
 
-export default function AdminTrips({ onEdit }) {
+export default function AdminTrips({ onEdit, isAdmin }) {
   const [trips, setTrips] = useState([]);
   const [trucks, setTrucks] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -509,10 +509,15 @@ export default function AdminTrips({ onEdit }) {
       case "_actions":
         return (
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => setEditTripId(t.id)} style={styles.editBtn}>
-              Edit
-            </button>
-            {t.status !== "verified" && (
+            {isAdmin && (
+              <button
+                onClick={() => setEditTripId(t.id)}
+                style={styles.editBtn}
+              >
+                Edit
+              </button>
+            )}
+            {isAdmin && t.status !== "verified" && (
               <button
                 onClick={() => handleVerify(t.id)}
                 style={styles.verifyBtn}

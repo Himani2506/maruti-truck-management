@@ -3,8 +3,10 @@ import TripForm      from '../../components/TripForm';
 import AdminTrips    from '../../components/AdminTrips';
 import AdminSettings from '../../components/AdminSettings';
 import { useOutletContext } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 export default function TrucksPage() {
+  const { isAdmin } = useAuth();
   const [view, setView]             = useState('driver');
   const [refreshKey, setRefreshKey] = useState(0);
   const [editTripId, setEditTripId] = useState(null);
@@ -27,7 +29,7 @@ export default function TrucksPage() {
   const tabs = [
     { id: 'driver',   label: '🚛 New Trip Entry' },
     { id: 'admin',    label: '📋 Admin View' },
-    { id: 'settings', label: '⚙️ Settings' },
+    ...(isAdmin ? [{ id: 'settings', label: '⚙️ Settings' }] : []),
   ];
 
   return (
@@ -55,7 +57,7 @@ export default function TrucksPage() {
           onSuccess={handleSuccess}
         />
       )}
-      {view === 'admin' && <AdminTrips key={refreshKey} onEdit={(id) => {}} />}
+      {view === 'admin' && <AdminTrips key={refreshKey} isAdmin={isAdmin} onEdit={(id) => {}} />}
       {view === 'settings' && <AdminSettings />}
     </div>
   );

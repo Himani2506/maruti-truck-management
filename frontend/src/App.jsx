@@ -5,8 +5,13 @@ import Layout       from './components/Layout';
 import HomePage     from './pages/HomePage';
 import TrucksPage   from './pages/trucks/TrucksPage';
 import ScrapManagement from './pages/ScrapManagement';
+import { useAuth } from "./context/AuthContext";
+import LoginPage from "./pages/LoginPage";
+
 
 export default function App() {
+  const { auth } = useAuth();
+  if (!auth) return <LoginPage />;
   return (
     <BrowserRouter>
       <Toaster position="top-right" />
