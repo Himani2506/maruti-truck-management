@@ -1,11 +1,11 @@
 -- TRUCKS
 INSERT INTO trucks (truck_number, driver_name, avg_kmpl) VALUES
-  ('8596', 'Bashunath',        4.2),
-  ('8597', 'Bibek Bista',       4.2),
-  ('8598', 'Om Bahadur Gurung', 4.2),
-  ('8599', 'Bibek Bista',       4.2),
-  ('8600', 'Suman Lama Thokar', 4.2),
-  ('0122', 'Madhav Karki',      4.2)
+  ('8596', 'Bashunath',        4.75),
+  ('8597', 'Bibek Bista',       4.75),
+  ('8598', 'Om Bahadur Gurung', 4.75),
+  ('8599', 'Bibek Bista',       4.75),
+  ('8600', 'Suman Lama Thokar', 4.75),
+  ('0122', 'Madhav Karki',      4.75)
 ON CONFLICT (truck_number) DO NOTHING;
 
 -- SOURCES
