@@ -11,6 +11,7 @@ import NepaliDatePicker from "./NepaliDatePicker";
 import { adToBS, formatBSShort, bsToADString } from "../nepaliDate";
 import toast from "react-hot-toast";
 import TripForm from "./TripForm";
+
 const STATUS_COLOR = {
   open: { bg: "#fff3cd", color: "#856404" },
   completed: { bg: "#d1ecf1", color: "#0c5460" },
@@ -23,7 +24,7 @@ const ALL_COLS = [
   { key: "driver_name", label: "Driver" },
   { key: "source_name", label: "Source" },
   { key: "customer_name", label: "Customer", always: true },
-  { key: "pieces", label: "Pieces" }, // ← add
+  { key: "pieces", label: "Pieces" },
   { key: "rate_per_piece", label: "Rate/Pc" },
   { key: "start_date", label: "Start (BS)", always: true },
   { key: "end_date", label: "End (BS)" },
@@ -59,6 +60,7 @@ const ALL_COLS = [
   { key: "tyre_expense", label: "Tyre" },
   { key: "total_expenses", label: "Total Exp", always: true },
   { key: "freight_amount", label: "Freight", always: true },
+  { key: "freight_dhuwwani", label: "Dhuwani Rate" },
   { key: "backload_freight_amount", label: "Backload Freight" },
   { key: "effective_backload_freight", label: "BL Freight (net)" },
   { key: "total_freight", label: "Total Freight" },
@@ -87,7 +89,7 @@ const DEFAULT_VISIBLE = new Set([
   "backload_freight_amount",
   "effective_backload_freight",
   "total_freight",
-  "pieces", // ← add
+  "pieces",
   "rate_per_piece",
   "maintenance_rokhar",
   "grease_expense",
@@ -96,6 +98,7 @@ const DEFAULT_VISIBLE = new Set([
   "tyre_expense",
   "total_expenses",
   "freight_amount",
+  "freight_dhuwwani",
   "police_tax",
   "phone_expense",
   "total_cash_expense",
@@ -137,25 +140,18 @@ export default function AdminTrips({ onEdit }) {
         backload_supplier_id: filters.backload_supplier_id,
       };
 
-      // 1. Convert From Date
       if (
         filters.from_date?.year &&
         filters.from_date?.month &&
         filters.from_date?.day
       ) {
-        // If bsToADString takes (year, month, day):
         backendFilters.from_date = bsToADString(
           Number(filters.from_date.year),
           Number(filters.from_date.month),
           Number(filters.from_date.day),
         );
-
-        // ALTERNATIVE: If your utility expects a string like "2083-04-15", uncomment below:
-        // const bsStr = `${filters.from_date.year}-${String(filters.from_date.month).padStart(2, '0')}-${String(filters.from_date.day).padStart(2, '0')}`;
-        // backendFilters.from_date = bsToADString(bsStr);
       }
 
-      // 2. Convert To Date
       if (
         filters.to_date?.year &&
         filters.to_date?.month &&
@@ -172,7 +168,7 @@ export default function AdminTrips({ onEdit }) {
         Object.entries(backendFilters).filter(([, v]) => v),
       );
 
-      let data = await getTrips(cleanFilters);
+      const data = await getTrips(cleanFilters);
       setTrips(data);
     } catch (error) {
       toast.error("Failed to load trips");
@@ -186,21 +182,11 @@ export default function AdminTrips({ onEdit }) {
     getCustomers().then(setCustomers);
     getBackloads().then(setBackloads);
   }, []);
+
   useEffect(() => {
     load();
   }, []);
 
-  const handleFilter = (e) =>
-    setFilters((f) => ({ ...f, [e.target.name]: e.target.value }));
-  const clearFilters = () =>
-    setFilters({
-      truck_id: "",
-      status: "",
-      from_date: { year: "", month: "", day: "" },
-      to_date: { year: "", month: "", day: "" },
-      customer_id: "",
-      backload_supplier_id: "",
-    });
   useEffect(() => {
     load();
   }, [
@@ -211,6 +197,20 @@ export default function AdminTrips({ onEdit }) {
     filters.customer_id,
     filters.backload_supplier_id,
   ]);
+
+  const handleFilter = (e) =>
+    setFilters((f) => ({ ...f, [e.target.name]: e.target.value }));
+
+  const clearFilters = () =>
+    setFilters({
+      truck_id: "",
+      status: "",
+      from_date: { year: "", month: "", day: "" },
+      to_date: { year: "", month: "", day: "" },
+      customer_id: "",
+      backload_supplier_id: "",
+    });
+
   const toggleCol = (key) =>
     setVisibleCols((prev) => {
       const next = new Set(prev);
@@ -232,7 +232,6 @@ export default function AdminTrips({ onEdit }) {
     n != null && n !== "" ? `NPR ${Number(n).toLocaleString()}` : "—";
   const fmtL = (n) => (n != null && n !== "" ? `${n} L` : "—");
 
-  // Totals
   const sum = (key) => trips.reduce((a, t) => a + (parseFloat(t[key]) || 0), 0);
   const totals = {
     diesel_cost: sum("diesel_cost"),
@@ -277,7 +276,6 @@ export default function AdminTrips({ onEdit }) {
   const visibleColDefs = ALL_COLS.filter((c) => visibleCols.has(c.key));
   const activeFilters = Object.values(filters).filter((v) => v).length;
 
-  // Cell renderer
   const renderCell = (col, t) => {
     switch (col.key) {
       case "id":
@@ -294,7 +292,6 @@ export default function AdminTrips({ onEdit }) {
         );
       case "pieces":
         return t.pieces != null ? Number(t.pieces).toLocaleString() : "—";
-
       case "rate_per_piece": {
         const p = parseFloat(t.pieces);
         const f = parseFloat(t.freight_amount);
@@ -384,20 +381,6 @@ export default function AdminTrips({ onEdit }) {
         ) : (
           "—"
         );
-
-      case "_actions":
-  return (
-    <div style={{ display: "flex", gap: 4 }}>
-      <button onClick={() => setEditTripId(t.id)} style={styles.editBtn}>
-        Edit
-      </button>
-      {t.status !== "verified" && (
-        <button onClick={() => handleVerify(t.id)} style={styles.verifyBtn}>
-          ✓
-        </button>
-      )}
-    </div>
-  );
       case "diesel_needed":
         return fmtL(t.diesel_needed);
       case "diesel_used":
@@ -419,6 +402,24 @@ export default function AdminTrips({ onEdit }) {
         return fmt(t.diesel_cost);
       case "fooding":
         return fmt(t.fooding);
+      case "trip_bhatta":
+        return fmt(t.trip_bhatta);
+      case "loading_amount":
+        return fmt(t.loading_amount ?? t.loading_unloading / 2);
+      case "unloading_amount":
+        return fmt(t.unloading_amount ?? t.loading_unloading / 2);
+      case "maintenance_hisab_phanna":
+        return fmt(t.maintenance_hisab_phanna);
+      case "maintenance_rokhar":
+        return fmt(t.maintenance_rokhar);
+      case "grease_expense":
+        return fmt(t.grease_expense);
+      case "road_tax":
+        return fmt(t.road_tax);
+      case "scrap_tax":
+        return fmt(t.scrap_tax);
+      case "tyre_expense":
+        return fmt(t.tyre_expense);
       case "police_tax":
         return fmt(t.police_tax);
       case "phone_expense":
@@ -451,24 +452,18 @@ export default function AdminTrips({ onEdit }) {
             {t.remarks || "—"}
           </span>
         );
-      case "trip_bhatta":
-        return fmt(t.trip_bhatta);
-      case "loading_amount":
-        return fmt(t.loading_amount ?? t.loading_unloading / 2);
-      case "unloading_amount":
-        return fmt(t.unloading_amount ?? t.loading_unloading / 2);
-      case "maintenance_hisab_phanna":
-        return fmt(t.maintenance_hisab_phanna);
-      case "maintenance_rokhar":
-        return fmt(t.maintenance_rokhar);
-      case "grease_expense":
-        return fmt(t.grease_expense);
-      case "road_tax":
-        return fmt(t.road_tax);
-      case "scrap_tax":
-        return fmt(t.scrap_tax);
-      case "tyre_expense":
-        return fmt(t.tyre_expense);
+      case "total_expenses":
+        return <b>{fmt(t.total_expenses)}</b>;
+      case "freight_amount":
+        return fmt(t.freight_amount);
+      case "freight_dhuwwani":
+        return t.freight_dhuwwani ? (
+          <span style={{ color: "#1a3a5c", fontWeight: 600 }}>
+            {fmt(t.freight_dhuwwani)}
+          </span>
+        ) : (
+          "—"
+        );
       case "backload_freight_amount":
         return fmt(t.backload_freight_amount);
       case "effective_backload_freight": {
@@ -477,7 +472,6 @@ export default function AdminTrips({ onEdit }) {
           (parseFloat(t.scrap_tax) || 0);
         return eff ? fmt(eff) : "—";
       }
-
       case "total_freight": {
         const total =
           (parseFloat(t.freight_amount) || 0) +
@@ -485,10 +479,6 @@ export default function AdminTrips({ onEdit }) {
           (parseFloat(t.scrap_tax) || 0);
         return <b style={{ color: "#1a3a5c" }}>{total ? fmt(total) : "—"}</b>;
       }
-      case "total_expenses":
-        return <b>{fmt(t.total_expenses)}</b>;
-      case "freight_amount":
-        return fmt(t.freight_amount);
       case "surplus":
         return (
           <b style={{ color: t.surplus < 0 ? "#cc0000" : "#007700" }}>
@@ -512,7 +502,7 @@ export default function AdminTrips({ onEdit }) {
       case "_actions":
         return (
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => onEdit(t.id)} style={styles.editBtn}>
+            <button onClick={() => setEditTripId(t.id)} style={styles.editBtn}>
               Edit
             </button>
             {t.status !== "verified" && (
@@ -530,7 +520,6 @@ export default function AdminTrips({ onEdit }) {
     }
   };
 
-  // Footer cell
   const renderFooter = (col) => {
     const moneyKeys = [
       "diesel_cost",
@@ -649,8 +638,9 @@ export default function AdminTrips({ onEdit }) {
           </div>
         </div>
       )}
+
+      {/* ── Filters ── */}
       <div style={styles.filterRow}>
-        {/* ── Filters ── */}
         <div style={styles.filterBox}>
           <div style={styles.filterRow}>
             <FilterGroup label="Truck">
@@ -808,11 +798,9 @@ export default function AdminTrips({ onEdit }) {
             <tbody>
               {[...trips]
                 .sort((a, b) => {
-                  // Sorts by start_date ascending so matching dates group together.
-                  // Change to b.start_date.localeCompare(a.start_date) for descending.
                   if (!a.start_date) return 1;
                   if (!b.start_date) return -1;
-                  return a.start_date.localeCompare(a.start_date);
+                  return b.start_date.localeCompare(a.start_date);
                 })
                 .map((t, i) => (
                   <tr
@@ -839,6 +827,8 @@ export default function AdminTrips({ onEdit }) {
           </table>
         </div>
       )}
+
+      {/* ── Customer popup ── */}
       {customerPopup && (
         <div
           onClick={() => setCustomerPopup(null)}
@@ -910,23 +900,37 @@ export default function AdminTrips({ onEdit }) {
         </div>
       )}
 
-    {editTripId && (
-  <div style={modalStyles.overlay} onClick={(e) => { if (e.target === e.currentTarget) setEditTripId(null); }}>
-    <div style={modalStyles.box}>
-      <div style={modalStyles.header}>
-        <span style={modalStyles.title}>✏️ Edit Trip #{editTripId}</span>
-        <button style={modalStyles.closeBtn} onClick={() => setEditTripId(null)}>✕</button>
-      </div>
-      <div style={modalStyles.body}>
-        <TripForm
-          key={editTripId}
-          editTripId={editTripId}
-          onSuccess={() => { setEditTripId(null); load(); }}
-        />
-      </div>
-    </div>
-  </div>
-)}
+      {/* ── Edit modal ── */}
+      {editTripId && (
+        <div
+          style={modalStyles.overlay}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditTripId(null);
+          }}
+        >
+          <div style={modalStyles.box}>
+            <div style={modalStyles.header}>
+              <span style={modalStyles.title}>✏️ Edit Trip #{editTripId}</span>
+              <button
+                style={modalStyles.closeBtn}
+                onClick={() => setEditTripId(null)}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={modalStyles.body}>
+              <TripForm
+                key={editTripId}
+                editTripId={editTripId}
+                onSuccess={() => {
+                  setEditTripId(null);
+                  load();
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1137,6 +1141,7 @@ const styles = {
     overflow: "hidden",
   },
 };
+
 const modalStyles = {
   overlay: {
     position: "fixed",
@@ -1181,9 +1186,5 @@ const modalStyles = {
     lineHeight: 1,
     padding: 0,
   },
-  body: {
-    overflowY: "auto",
-    padding: "0 8px 16px",
-    flex: 1,
-  },
+  body: { overflowY: "auto", padding: "0 8px 16px", flex: 1 },
 };

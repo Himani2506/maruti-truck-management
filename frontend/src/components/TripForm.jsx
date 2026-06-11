@@ -62,7 +62,7 @@ function CustomerSearchInput({
   const [newCust, setNewCust] = useState({
     name: "",
     destination_address: "",
-    freight_actual: "",
+    freight_dhuwwani: "",
   });
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState("");
@@ -77,8 +77,8 @@ function CustomerSearchInput({
   );
 
   const exactMatch = customers.some(
-  (c) => c.name?.toLowerCase() === query.toLowerCase()
-);
+    (c) => c.name?.toLowerCase() === query.toLowerCase()
+  );
   const showAddOption = query.trim().length > 0 && !exactMatch;
 
   useEffect(() => {
@@ -94,7 +94,6 @@ function CustomerSearchInput({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Focus name input when mini-form opens
   useEffect(() => {
     if (showAddForm) {
       setTimeout(() => nameRef.current?.focus(), 0);
@@ -113,7 +112,6 @@ function CustomerSearchInput({
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setOpen(true);
-      // +1 extra slot for the add option if visible
       setHighlighted((h) =>
         Math.min(h + 1, filtered.length - 1 + (showAddOption ? 1 : 0)),
       );
@@ -125,10 +123,8 @@ function CustomerSearchInput({
       if (open && filtered[highlighted]) {
         select(filtered[highlighted]);
       } else if (open && showAddOption && filtered.length === 0) {
-        // no matches, only add option visible → open form
         openAddForm();
       } else if (open && showAddOption && highlighted === filtered.length) {
-        // user arrowed down to the add option
         openAddForm();
       }
     } else if (e.key === "Escape") {
@@ -138,7 +134,6 @@ function CustomerSearchInput({
     }
   };
 
-  // Enter key navigation inside the mini-form
   const handleFormKeyDown = (e) => {
     e.stopPropagation();
     if (e.key === "Enter") {
@@ -151,10 +146,8 @@ function CustomerSearchInput({
       const idx = focusable.indexOf(e.target);
       const next = focusable[idx + 1];
       if (next && next.tagName !== "BUTTON") {
-        // still more inputs to go through
         next.focus();
       } else {
-        // last input or no next → submit
         handleAddSubmit();
       }
     }
@@ -165,13 +158,14 @@ function CustomerSearchInput({
       setNewCust({
         name: query.trim(),
         destination_address: "",
-        freight_actual: "",
+        freight_dhuwwani: "",
       });
       setShowAddForm(true);
       setOpen(false);
       setAddError("");
     }, 0);
   };
+
   const toTitleCase = (str) =>
     str
       .trim()
@@ -379,12 +373,12 @@ function CustomerSearchInput({
           </div>
 
           <div style={addFormStyles.fieldWrap}>
-            <label style={addFormStyles.label}>Freight Rate (NPR)</label>
+            <label style={addFormStyles.label}>Freight Dhuwani Rate (NPR)</label>
             <input
               type="number"
-              value={newCust.freight_actual}
+              value={newCust.freight_dhuwwani}
               onChange={(e) =>
-                setNewCust((p) => ({ ...p, freight_actual: e.target.value }))
+                setNewCust((p) => ({ ...p, freight_dhuwwani: e.target.value }))
               }
               style={styles.input}
               placeholder="e.g. 28000"
@@ -561,7 +555,6 @@ function BackloadSupplierSelect({
 
   return (
     <div ref={wrapRef} style={{ position: "relative" }}>
-      {/* ── Selected tag ── */}
       {selected && (
         <div style={styles.tagRow}>
           <div style={styles.tag}>
@@ -578,7 +571,6 @@ function BackloadSupplierSelect({
         </div>
       )}
 
-      {/* ── Search input ── */}
       <div style={styles.searchWrap}>
         <input
           ref={inputRef}
@@ -614,10 +606,8 @@ function BackloadSupplierSelect({
         )}
       </div>
 
-      {/* ── Dropdown ── */}
       {open && !showAddForm && (
         <div style={styles.dropdown}>
-          {/* "No backload" option always at top */}
           <div
             onMouseDown={(e) => {
               e.preventDefault();
@@ -690,7 +680,6 @@ function BackloadSupplierSelect({
         </div>
       )}
 
-      {/* ── Inline Add Form ── */}
       {showAddForm && (
         <div style={addFormStyles.wrap} onKeyDown={handleFormKeyDown}>
           <div style={addFormStyles.header}>
@@ -788,8 +777,8 @@ export default function TripForm({ onSuccess, editTripId }) {
   })();
   const foodingAuto = numDays ? numDays * FOODING_RATE : 0;
   const fooding = form.fooding_override !== ""
-  ? parseFloat(form.fooding_override) || 0
-  : foodingAuto;
+    ? parseFloat(form.fooding_override) || 0
+    : foodingAuto;
   const tripBhatta = startAD && endAD ? BHATTA_RATE : 0;
 
   const meterStart = parseFloat(form.meter_start) || null;
@@ -799,7 +788,6 @@ export default function TripForm({ onSuccess, editTripId }) {
       ? parseFloat((meterEnd - meterStart).toFixed(2))
       : null;
 
-  // ── Diesel ───────────────────────────────────────────────────
   const truckAvg = selectedTruck?.avg_kmpl
     ? parseFloat(selectedTruck.avg_kmpl)
     : null;
@@ -815,14 +803,12 @@ export default function TripForm({ onSuccess, editTripId }) {
       ? parseFloat((dieselNeeded - parseFloat(form.diesel_used)).toFixed(2))
       : null;
 
-  // ── Expenses ─────────────────────────────────────────────────
   const n = (k) => parseFloat(form[k]) || 0;
   const effectiveBhatta =
     form.trip_bhatta_override !== ""
       ? parseFloat(form.trip_bhatta_override) || 0
       : BHATTA_RATE;
 
-  // CHANGE 2: scrap_tax removed from totalExpenses — it now belongs to backload
   const totalExpenses =
     (dieselCost || 0) +
     fooding +
@@ -839,7 +825,6 @@ export default function TripForm({ onSuccess, editTripId }) {
 
   const totalCashExpense = totalExpenses - (dieselCost || 0);
 
-  // ── Backload ─────────────────────────────────────────────────
   const backloadStartAD = bsToADString(
     backloadStartBS.year,
     backloadStartBS.month,
@@ -872,7 +857,6 @@ export default function TripForm({ onSuccess, editTripId }) {
         ? BHATTA_RATE
         : 0;
 
-  // CHANGE 2: scrap_tax added into backloadCashExpense
   const backloadCashExpense =
     (parseFloat(form.backload_loading_amount) || 0) +
     (parseFloat(form.backload_unloading_amount) || 0) +
@@ -882,7 +866,6 @@ export default function TripForm({ onSuccess, editTripId }) {
 
   const totalCashExpenseWithBackload = totalCashExpense + backloadCashExpense;
 
-  // CHANGE 1: total freight across all selected customers
   const totalFreightDisplay =
     (parseFloat(form.freight_amount) || 0) +
     (form.customer_ids || [])
@@ -916,13 +899,11 @@ export default function TripForm({ onSuccess, editTripId }) {
       ? (surplus || 0) + (backloadSurplus || 0)
       : null;
 
-  // ── Selected customers (derived) ─────────────────────────────
   const selectedCustomers = (form.customer_ids || [])
     .map((id) => customers.find((c) => c.id === id))
     .filter(Boolean);
   const firstCustomer = selectedCustomers[0] || null;
 
-  // ── Load master data ─────────────────────────────────────────
   useEffect(() => {
     getTrucks().then(setTrucks);
     getSources().then(setSources);
@@ -936,12 +917,12 @@ export default function TripForm({ onSuccess, editTripId }) {
     );
   }, [form.truck_id, trucks]);
 
-  // Auto-fill freight from first customer
+  // Auto-fill freight from first customer's freight_dhuwwani
   useEffect(() => {
-    if (firstCustomer?.freight_actual) {
+    if (firstCustomer?.freight_dhuwwani) {
       setForm((prev) => ({
         ...prev,
-        freight_amount: firstCustomer.freight_actual,
+        freight_amount: firstCustomer.freight_dhuwwani,
       }));
     }
   }, [form.customer_ids[0]]);
@@ -972,6 +953,7 @@ export default function TripForm({ onSuccess, editTripId }) {
     setBackloads((prev) => [...prev, newBackload]);
     toast.success(`"${newBackload.description}" added and selected!`);
   };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.truck_id || !form.source_id || !form.customer_ids.length) {
@@ -1046,7 +1028,7 @@ export default function TripForm({ onSuccess, editTripId }) {
       if (index > -1 && focusable[index + 1]) focusable[index + 1].focus();
     }
   };
-  // ADD after the existing useEffects
+
   useEffect(() => {
     if (!editTripId) return;
     getTrip(editTripId)
@@ -1087,25 +1069,18 @@ export default function TripForm({ onSuccess, editTripId }) {
           backload_fooding: trip.backload_fooding ?? "",
           backload_bhatta: trip.backload_bhatta ?? "",
         });
-        const toStrBS = (bs) => ({
-          year: String(bs.year),
-          month: String(bs.month),
-          day: String(bs.day),
-        });
         if (trip.start_date) setStartBS(adToBS(trip.start_date));
-        console.log("adToBS result:", adToBS(trip.start_date));
         if (trip.end_date) setEndBS(adToBS(trip.end_date));
         if (trip.backload_start_date)
           setBackloadStartBS(adToBS(trip.backload_start_date));
         if (trip.backload_end_date)
           setBackloadEndBS(adToBS(trip.backload_end_date));
-
-        // per-customer pieces/freight stored in DB as JSON columns
         if (trip.customer_pieces) setCustomerPieces(trip.customer_pieces);
         if (trip.customer_freight) setCustomerFreight(trip.customer_freight);
       })
       .catch(() => toast.error("Failed to load trip data"));
   }, [editTripId]);
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -1238,7 +1213,7 @@ export default function TripForm({ onSuccess, editTripId }) {
                 {i === 0 ? "🥇 Primary" : `#${i + 1}`}: {c.name}
               </b>
               &nbsp;— {c.destination_address?.trim() || "⚠ Address not set"}
-              &nbsp;&nbsp;<b>Base Rate:</b> {fmt(c.freight_actual)}
+              &nbsp;&nbsp;<b>Dhuwani Rate:</b> {fmt(c.freight_dhuwwani)}
               {c.avg_rate_per_piece && (
                 <span style={{ fontSize: 11, color: "#2a6098", marginLeft: 8 }}>
                   Avg NPR {Number(c.avg_rate_per_piece).toLocaleString()}/piece
@@ -1362,7 +1337,7 @@ export default function TripForm({ onSuccess, editTripId }) {
               style={styles.input}
               placeholder="e.g. 30000"
             />
-            {firstCustomer?.freight_actual && (
+            {firstCustomer?.freight_dhuwwani && (
               <span
                 style={{
                   fontSize: 11,
@@ -1371,14 +1346,14 @@ export default function TripForm({ onSuccess, editTripId }) {
                   fontStyle: "italic",
                 }}
               >
-                Rate from DB: NPR{" "}
-                {Number(firstCustomer.freight_actual).toLocaleString()}
+                Dhuwani Rate from DB: NPR{" "}
+                {Number(firstCustomer.freight_dhuwwani).toLocaleString()}
               </span>
             )}
           </Field>
         )}
 
-        {/* CHANGE 1: Total freight box — only shown when 2+ customers */}
+        {/* Total freight box — only shown when 2+ customers */}
         {selectedCustomers.length > 1 && (
           <Field label="Total Freight — All Customers (Auto)">
             <input
@@ -1623,7 +1598,7 @@ export default function TripForm({ onSuccess, editTripId }) {
         </Row>
       </Section>
 
-      {/* ── 10. Other Expenses ── CHANGE 2: scrap_tax removed from here */}
+      {/* ── 10. Other Expenses ── */}
       <Section title="10. Other Expenses">
         <Row>
           <Field label="Grease Expense (NPR)">
@@ -1688,7 +1663,7 @@ export default function TripForm({ onSuccess, editTripId }) {
         </Row>
       </Section>
 
-      {/* ── 11. Backload / Return ── CHANGE 2: scrap_tax moved here */}
+      {/* ── 11. Backload / Return ── */}
       <Section title="11. Backload / Return Trip">
         <Field label="Backload Supplier">
           <BackloadSupplierSelect
@@ -1700,7 +1675,6 @@ export default function TripForm({ onSuccess, editTripId }) {
           />
         </Field>
 
-        {/* CHANGE 2: Scrap Tax always visible in Section 11 */}
         <Field label="Scrap Tax (NPR)" hint="Applied to backload / return">
           <input
             type="number"
@@ -1861,7 +1835,6 @@ export default function TripForm({ onSuccess, editTripId }) {
             <BLine label="Tyre" value={fmt(n("tyre_expense") || null)} />
             <BLine label="Police Tax" value={fmt(n("police_tax") || null)} />
             <BLine label="Phone" value={fmt(n("phone_expense") || null)} />
-            {/* CHANGE 2: Scrap Tax shown under backload in breakdown */}
             {n("scrap_tax") > 0 && (
               <BLine
                 label="Scrap Tax (BL)"
@@ -2235,6 +2208,7 @@ const styles = {
     textAlign: "center",
   },
 };
+
 const addFormStyles = {
   wrap: {
     position: "absolute",
