@@ -21,6 +21,8 @@ export const verifyTrip = (id)          => api.patch(`/trips/${id}/verify`).then
 // ── Scrap ─────────────────────────────────────────────────────
 export const getScrapEntries   = ()         => api.get('/scrap').then(r => r.data);
 export const getScrapPartySummary = ()      => api.get('/scrap/party-summary').then(r => r.data);
+export const getSources = () =>
+  fetch(`${API}/sources`).then(r => r.json());
 export const createScrapEntry  = (data)     => api.post('/scrap', data).then(r => r.data);
 export const updateScrapEntry    = (id, data) => api.put(`/scrap/${id}`, data).then(r => r.data);
 export const overrideScrapEntry = (id, data) => api.put(`/scrap/${id}/override`, data).then(r => r.data);
