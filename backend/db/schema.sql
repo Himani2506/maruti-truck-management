@@ -128,3 +128,12 @@ ALTER TABLE customers ADD COLUMN IF NOT EXISTS rate_trip_count integer DEFAULT 0
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS last_rate_updated timestamptz;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS avg_rate_per_piece numeric(10,2);
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS piece_trip_count integer DEFAULT 0;
+
+-- Add to schema.sql
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  role VARCHAR(10) NOT NULL DEFAULT 'viewer' CHECK (role IN ('admin', 'viewer')),
+  created_at TIMESTAMP DEFAULT NOW()
+);
