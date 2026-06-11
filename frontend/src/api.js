@@ -6,7 +6,6 @@ const api = axios.create({ baseURL: `${BASE_URL}/api` });
 
 // ── Master data ──────────────────────────────────────────────
 export const getTrucks    = ()  => api.get('/trucks').then(r => r.data);
-export const getSources   = ()  => api.get('/sources').then(r => r.data);
 export const getCustomers = ()  => api.get('/customers').then(r => r.data);
 export const getBackloads = ()  => api.get('/backloads').then(r => r.data);
 
