@@ -120,6 +120,7 @@ export default function AdminTrips({ onEdit }) {
   const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE);
   const [showColPicker, setShowColPicker] = useState(false);
   const [editTripId, setEditTripId] = useState(null);
+  const [sources, setSources] = useState([]);
   const [customerPopup, setCustomerPopup] = useState(null);
   const [filters, setFilters] = useState({
     truck_id: "",
@@ -128,6 +129,7 @@ export default function AdminTrips({ onEdit }) {
     to_date: { year: "", month: "", day: "" },
     customer_id: "",
     backload_supplier_id: "",
+    source_name: "",
   });
 
   const load = async () => {
@@ -138,6 +140,7 @@ export default function AdminTrips({ onEdit }) {
         customer_id: filters.customer_id,
         status: filters.status,
         backload_supplier_id: filters.backload_supplier_id,
+        source_name: filters.source_name,
       };
 
       if (
@@ -170,6 +173,9 @@ export default function AdminTrips({ onEdit }) {
 
       const data = await getTrips(cleanFilters);
       setTrips(data);
+      setSources(
+        [...new Set(data.map((t) => t.source_name).filter(Boolean))].sort(),
+      );
     } catch (error) {
       toast.error("Failed to load trips");
     } finally {
@@ -196,6 +202,7 @@ export default function AdminTrips({ onEdit }) {
     filters.to_date,
     filters.customer_id,
     filters.backload_supplier_id,
+    filters.source_name,
   ]);
 
   const handleFilter = (e) =>
@@ -209,6 +216,7 @@ export default function AdminTrips({ onEdit }) {
       to_date: { year: "", month: "", day: "" },
       customer_id: "",
       backload_supplier_id: "",
+      source_name: "",
     });
 
   const toggleCol = (key) =>
@@ -654,6 +662,21 @@ export default function AdminTrips({ onEdit }) {
                 {trucks.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.truck_number} — {t.driver_name || "—"}
+                  </option>
+                ))}
+              </select>
+            </FilterGroup>
+            <FilterGroup label="Source">
+              <select
+                name="source_name"
+                value={filters.source_name}
+                onChange={handleFilter}
+                style={styles.filterInput}
+              >
+                <option value="">All Sources</option>
+                {sources.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
                   </option>
                 ))}
               </select>
