@@ -33,46 +33,40 @@ function computeNetPayable({
   const br = parseFloat(bill_rate) || 0;
   const ow = parseFloat(our_weight) || bw;
 
-  const totalLabReport =
-    (parseFloat(moisture) || 0) +
-    (parseFloat(duplex) || 0) +
-    (parseFloat(plastic) || 0) +
-    (parseFloat(pin) || 0) +
-    (parseFloat(raining_water) || 0) +
-    (parseFloat(dust) || 0) +
-    (parseFloat(millboard) || 0) +
-    (parseFloat(extra) || 0);
+  const totalRejection = parseFloat(row.rejection) || (
+  (parseFloat(row.duplex) || 0) +
+  (parseFloat(row.plastic) || 0) +
+  (parseFloat(row.pin) || 0) +
+  (parseFloat(row.raining_water) || 0) +
+  (parseFloat(row.dust) || 0) +
+  (parseFloat(row.millboard) || 0) +
+  (parseFloat(row.extra) || 0)
+);
+ const totalLab = (parseFloat(row.moisture) || 0) + totalRejection; 
 
-  const effectiveRate = superseded_rate != null ? parseFloat(superseded_rate) : br;
-  const effectiveLab = superseded_rejection != null ? parseFloat(superseded_rejection) : totalLabReport;
 
-  const vat = bw * br * 0.13;
+  const effectiveRate = row.superseded_rate != null ? parseFloat(row.superseded_rate) : br;
+  const effectiveLab  = row.superseded_rejection != null ? parseFloat(row.superseded_rejection) : totalLab;
+
+  const vat          = bw * br * 0.13;
   const labDeduction = bw * effectiveRate * effectiveLab / 100;
-  const netPayable = (bw - ow) * effectiveRate + vat - labDeduction;
+  const netPayable   = ow * effectiveRate + vat - labDeduction;  // ← ow, not (bw - ow)
 
   return parseFloat(netPayable.toFixed(2));
 }
 
 // ─── NET PAYABLE SQL block (no table prefix) ────────────────────────────────
-// ─── NET PAYABLE SQL block (no table prefix) ────────────────────────────────
+
 const NET_PAYABLE_SQL = `
-  (bill_weight - COALESCE(our_weight, bill_weight))
-  * COALESCE(superseded_rate, bill_rate)
+  COALESCE(our_weight, bill_weight) * COALESCE(superseded_rate, bill_rate)
   + (bill_weight * bill_rate * 0.13)
-  - (bill_weight
-     * COALESCE(superseded_rate, bill_rate)
-     * COALESCE(superseded_rejection, ${TOTAL_LAB_REPORT_SQL})
-     / 100)
+  - (bill_weight * COALESCE(superseded_rate, bill_rate) * COALESCE(superseded_rejection, ${TOTAL_LAB_REPORT_SQL}) / 100)
 `;
 
 const E_NET_PAYABLE_SQL = `
-  (e.bill_weight - COALESCE(e.our_weight, e.bill_weight))
-  * COALESCE(e.superseded_rate, e.bill_rate)
+  COALESCE(e.our_weight, e.bill_weight) * COALESCE(e.superseded_rate, e.bill_rate)
   + (e.bill_weight * e.bill_rate * 0.13)
-  - (e.bill_weight
-     * COALESCE(e.superseded_rate, e.bill_rate)
-     * COALESCE(e.superseded_rejection, ${E_TOTAL_LAB_REPORT_SQL})
-     / 100)
+  - (e.bill_weight * COALESCE(e.superseded_rate, e.bill_rate) * COALESCE(e.superseded_rejection, ${E_TOTAL_LAB_REPORT_SQL}) / 100)
 `;
 
 // ─── GET all entries (daily view) ──────────────────────────────────────────
