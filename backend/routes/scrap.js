@@ -161,6 +161,35 @@ router.put('/opening/:partyName', async (req, res) => {
   }
 });
 
+
+// ─── GET all parties ────────────────────────────────────────────────────────
+router.get('/parties', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM scrap_parties ORDER BY party_name ASC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST create party ──────────────────────────────────────────────────────
+router.post('/parties', async (req, res) => {
+  const { party_name, address, freight, opening } = req.body;
+  if (!party_name) return res.status(400).json({ error: 'party_name is required' });
+  try {
+    const result = await pool.query(`
+      INSERT INTO scrap_parties (party_name, address, freight, opening)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (party_name) DO NOTHING
+      RETURNING *
+    `, [party_name, address || '', parseFloat(freight) || 0, parseFloat(opening) || 0]);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // ─── GET single entry ───────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
