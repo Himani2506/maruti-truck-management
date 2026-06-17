@@ -128,30 +128,29 @@ router.get("/party-summary", async (req, res) => {
 });
 
 // ─── GET party sheet ────────────────────────────────────────────────────────
-router.get("/party-sheet/:partyName", async (req, res) => {
+router.get('/party-sheet/:partyName', async (req, res) => {
   try {
-    const result = await pool.query(
-      `
+    const result = await pool.query(`
       SELECT
-        id, source AS party_name, grn, bill_weight, our_weight, freight,
-        scrap_tax_hetauda, scrap_tax_simra, scrap_tax_birgunj, other_expenses,
+        id, source AS party_name, grn,
+        bill_weight, our_weight, bill_rate,
+        superseded_rate, superseded_rejection,
+        freight, scrap_tax_hetauda, scrap_tax_simra, scrap_tax_birgunj, other_expenses,
         (scrap_tax_hetauda + scrap_tax_simra + scrap_tax_birgunj + other_expenses + freight) AS total_expenses,
         CASE
           WHEN bill_weight > 0 THEN
             (scrap_tax_hetauda + scrap_tax_simra + scrap_tax_birgunj + other_expenses + freight) / bill_weight
           ELSE 0
         END AS per_kg_cost,
-        ${NET_PAYABLE_SQL} AS net_payable,
-        ${LAB_TOTAL} AS total_lab_report
+        ${LAB_TOTAL} AS total_lab_report,
+        ${NET_PAYABLE_SQL} AS net_payable
       FROM scrap_entries
       WHERE source = $1
       ORDER BY unloading_date_ad DESC, id DESC
-    `,
-      [decodeURIComponent(req.params.partyName)],
-    );
+    `, [decodeURIComponent(req.params.partyName)]);
     res.json(result.rows);
   } catch (err) {
-    console.error("GET /scrap/party-sheet error:", err);
+    console.error('GET /scrap/party-sheet error:', err);
     res.status(500).json({ error: err.message });
   }
 });
