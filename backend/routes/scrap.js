@@ -16,16 +16,13 @@ const E_TOTAL_REJECTION_SQL = `COALESCE(
   COALESCE(e.extra,0)
 )`;
 
-// TOTAL_LAB_REPORT_SQL — now = moisture + rejection (no superseded here, that's handled in NET_PAYABLE)
 const TOTAL_LAB_REPORT_SQL = `COALESCE(moisture,0) + ${TOTAL_REJECTION_SQL}`;
 
 const E_TOTAL_LAB_REPORT_SQL = `COALESCE(e.moisture,0) + ${E_TOTAL_REJECTION_SQL}`;
 
-
-// ─── Helper: compute net_payable (JS, used nowhere currently but kept) ──────
 function computeNetPayable({
   bill_weight, bill_rate, our_weight,
-  moisture, duplex, plastic, pin,
+  moisture, rejection, duplex, plastic, pin,
   raining_water, dust, millboard, extra,
   superseded_rate, superseded_rejection,
 }) {
@@ -33,29 +30,26 @@ function computeNetPayable({
   const br = parseFloat(bill_rate) || 0;
   const ow = parseFloat(our_weight) || bw;
 
-  const totalRejection = parseFloat(row.rejection) || (
-  (parseFloat(row.duplex) || 0) +
-  (parseFloat(row.plastic) || 0) +
-  (parseFloat(row.pin) || 0) +
-  (parseFloat(row.raining_water) || 0) +
-  (parseFloat(row.dust) || 0) +
-  (parseFloat(row.millboard) || 0) +
-  (parseFloat(row.extra) || 0)
-);
- const totalLab = (parseFloat(row.moisture) || 0) + totalRejection; 
+  const totalRejection = parseFloat(rejection) || (
+    (parseFloat(duplex) || 0) +
+    (parseFloat(plastic) || 0) +
+    (parseFloat(pin) || 0) +
+    (parseFloat(raining_water) || 0) +
+    (parseFloat(dust) || 0) +
+    (parseFloat(millboard) || 0) +
+    (parseFloat(extra) || 0)
+  );
+  const totalLab = (parseFloat(moisture) || 0) + totalRejection;
 
-
-  const effectiveRate = row.superseded_rate != null ? parseFloat(row.superseded_rate) : br;
-  const effectiveLab  = row.superseded_rejection != null ? parseFloat(row.superseded_rejection) : totalLab;
+  const effectiveRate = superseded_rate != null ? parseFloat(superseded_rate) : br;
+  const effectiveLab  = superseded_rejection != null ? parseFloat(superseded_rejection) : totalLab;
 
   const vat          = bw * br * 0.13;
   const labDeduction = bw * effectiveRate * effectiveLab / 100;
-  const netPayable   = ow * effectiveRate + vat - labDeduction;  // ← ow, not (bw - ow)
+  const netPayable   = ow * effectiveRate + vat - labDeduction;
 
   return parseFloat(netPayable.toFixed(2));
 }
-
-// ─── NET PAYABLE SQL block (no table prefix) ────────────────────────────────
 
 const NET_PAYABLE_SQL = `
   COALESCE(our_weight, bill_weight) * COALESCE(superseded_rate, bill_rate)
@@ -112,6 +106,7 @@ router.get("/party-summary", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // ─── GET party sheet ────────────────────────────────────────────────────────
 router.get('/party-sheet/:partyName', async (req, res) => {
   try {
@@ -120,11 +115,12 @@ router.get('/party-sheet/:partyName', async (req, res) => {
         id, source AS party_name, grn,
         bill_weight, our_weight, bill_rate,
         superseded_rate, superseded_rejection,
-        freight, scrap_tax_hetauda, scrap_tax_simra, scrap_tax_birgunj, other_expenses,
-        (scrap_tax_hetauda + scrap_tax_simra + scrap_tax_birgunj + other_expenses + freight) AS total_expenses,
+        freight, scrap_tax_hetauda, scrap_tax_simra, scrap_tax_birgunj,
+        other_taxes, other_expenses,
+        (COALESCE(freight,0) + COALESCE(scrap_tax_hetauda,0) + COALESCE(scrap_tax_simra,0) + COALESCE(scrap_tax_birgunj,0) + COALESCE(other_taxes,0)) AS total_expenses,
         CASE
           WHEN bill_weight > 0 THEN
-            (scrap_tax_hetauda + scrap_tax_simra + scrap_tax_birgunj + other_expenses + freight) / bill_weight
+            (COALESCE(freight,0) + COALESCE(scrap_tax_hetauda,0) + COALESCE(scrap_tax_simra,0) + COALESCE(scrap_tax_birgunj,0) + COALESCE(other_taxes,0)) / bill_weight
           ELSE 0
         END AS per_kg_cost,
         ${TOTAL_REJECTION_SQL} AS total_rejection,
@@ -161,12 +157,10 @@ router.put("/opening/:partyName", async (req, res) => {
   const partyName = decodeURIComponent(req.params.partyName);
   try {
     const result = await pool.query(
-      `
-      INSERT INTO scrap_party_opening (party_name, opening)
-      VALUES ($1, $2)
-      ON CONFLICT (party_name) DO UPDATE SET opening = $2
-      RETURNING *
-    `,
+      `INSERT INTO scrap_party_opening (party_name, opening)
+       VALUES ($1, $2)
+       ON CONFLICT (party_name) DO UPDATE SET opening = $2
+       RETURNING *`,
       [partyName, opening],
     );
     res.json(result.rows[0]);
@@ -194,18 +188,11 @@ router.post("/parties", async (req, res) => {
     return res.status(400).json({ error: "party_name is required" });
   try {
     const result = await pool.query(
-      `
-      INSERT INTO scrap_parties (party_name, address, freight, opening)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (party_name) DO NOTHING
-      RETURNING *
-    `,
-      [
-        party_name,
-        address || "",
-        parseFloat(freight) || 0,
-        parseFloat(opening) || 0,
-      ],
+      `INSERT INTO scrap_parties (party_name, address, freight, opening)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (party_name) DO NOTHING
+       RETURNING *`,
+      [party_name, address || "", parseFloat(freight) || 0, parseFloat(opening) || 0],
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -252,10 +239,8 @@ router.post('/unclear-party', async (req, res) => {
   }
 });
 
-// ─── POST tally data (persist xlsx upload) ──────────────────────────────────
+// ─── POST tally data ────────────────────────────────────────────────────────
 router.post('/tally', async (req, res) => {
-  // req.body is a map of { partyName: { opening, debit, credit, closing } }
-  // Store in memory/session or a tally table — for now just acknowledge
   res.json({ success: true, received: Object.keys(req.body).length });
 });
 
@@ -281,91 +266,53 @@ router.get("/:id", async (req, res) => {
 // ─── POST create entry ──────────────────────────────────────────────────────
 router.post("/", async (req, res) => {
   const {
-    unloading_date_ad,
-    unloading_date_bs,
-    gen,
-    grn,
-    source,
-    vehicle_no,
-    party_bill_no,
-    bill_weight,
-    bill_rate,
-    our_weight,
-    moisture,
-    rejection,
-    duplex,
-    plastic,
-    pin,
-    raining_water,
-    dust,
-    millboard,
-    extra,
-    scrap_tax_birgunj,
-    scrap_tax_simra,
-    scrap_tax_hetauda,
-    other_expenses,
-    freight,
+    unloading_date_ad, unloading_date_bs,
+    gen, grn, source, vehicle_no, party_bill_no,
+    bill_weight, bill_rate, our_weight,
+    moisture, rejection, duplex, plastic, pin,
+    raining_water, dust, millboard, extra,
+    scrap_tax_birgunj, scrap_tax_simra, scrap_tax_hetauda,
+    other_taxes, other_expenses, freight,
   } = req.body;
 
   if (!unloading_date_ad || !unloading_date_bs || !source) {
-    return res
-      .status(400)
-      .json({
-        error: "unloading_date_ad, unloading_date_bs, and source are required",
-      });
+    return res.status(400).json({
+      error: "unloading_date_ad, unloading_date_bs, and source are required",
+    });
   }
 
   try {
     const result = await pool.query(
-      `
-      INSERT INTO scrap_entries (
+      `INSERT INTO scrap_entries (
         unloading_date_ad, unloading_date_bs,
         gen, grn,
         source, vehicle_no, party_bill_no,
         bill_weight, bill_rate, our_weight,
         moisture, rejection, duplex, plastic, pin, raining_water, dust, millboard, extra,
         scrap_tax_birgunj, scrap_tax_simra, scrap_tax_hetauda,
-        other_expenses, freight
+        other_taxes, other_expenses, freight
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10,
         $11, $12, $13, $14, $15, $16, $17, $18, $19,
-        $20, $21, $22, $23, $24
-      ) RETURNING *
-    `,
+        $20, $21, $22, $23, $24, $25
+      ) RETURNING *`,
       [
-        unloading_date_ad,
-        unloading_date_bs,
-        gen || null,
-        grn || null,
-        source,
-        vehicle_no || null,
-        party_bill_no || null,
-        bill_weight || null,
-        bill_rate || null,
-        our_weight || null,
+        unloading_date_ad, unloading_date_bs,
+        gen || null, grn || null,
+        source, vehicle_no || null, party_bill_no || null,
+        bill_weight || null, bill_rate || null, our_weight || null,
         moisture || null,
-        rejection != null
-          ? rejection
-          : ((parseFloat(duplex) || 0) +
-              (parseFloat(plastic) || 0) +
-              (parseFloat(pin) || 0) +
-              (parseFloat(raining_water) || 0) +
-              (parseFloat(dust) || 0) +
-              (parseFloat(millboard) || 0) +
-              (parseFloat(extra) || 0)),
-        duplex || null,
-        plastic || null,
-        pin || null,
-        raining_water || null,
-        dust || null,
-        millboard || null,
-        extra || null,
-        scrap_tax_birgunj || 0,
-        scrap_tax_simra || 0,
-        scrap_tax_hetauda || 0,
-        other_expenses || 0,
-        freight || 0,
+        rejection != null ? rejection : (
+          (parseFloat(duplex) || 0) + (parseFloat(plastic) || 0) +
+          (parseFloat(pin) || 0) + (parseFloat(raining_water) || 0) +
+          (parseFloat(dust) || 0) + (parseFloat(millboard) || 0) +
+          (parseFloat(extra) || 0)
+        ),
+        duplex || null, plastic || null, pin || null,
+        raining_water || null, dust || null, millboard || null, extra || null,
+        scrap_tax_birgunj || 0, scrap_tax_simra || 0, scrap_tax_hetauda || 0,
+        other_taxes || 0, other_expenses || 0, freight || 0,
       ],
     );
     res.status(201).json(result.rows[0]);
@@ -380,12 +327,10 @@ router.put("/:id/override", async (req, res) => {
   const { superseded_rate, superseded_rejection } = req.body;
   try {
     const result = await pool.query(
-      `
-      UPDATE scrap_entries
-      SET superseded_rate = $1, superseded_rejection = $2
-      WHERE id = $3
-      RETURNING *
-    `,
+      `UPDATE scrap_entries
+       SET superseded_rate = $1, superseded_rejection = $2
+       WHERE id = $3
+       RETURNING *`,
       [
         superseded_rate !== undefined ? superseded_rate : null,
         superseded_rejection !== undefined ? superseded_rejection : null,
@@ -404,36 +349,18 @@ router.put("/:id/override", async (req, res) => {
 // ─── PUT full update (edit entry) ──────────────────────────────────────────
 router.put("/:id", async (req, res) => {
   const {
-    unloading_date_ad,
-    unloading_date_bs,
-    gen,
-    grn,
-    source,
-    vehicle_no,
-    party_bill_no,
-    bill_weight,
-    bill_rate,
-    our_weight,
-    moisture,
-    rejection,
-    duplex,
-    plastic,
-    pin,
-    raining_water,
-    dust,
-    millboard,
-    extra,
-    scrap_tax_birgunj,
-    scrap_tax_simra,
-    scrap_tax_hetauda,
-    other_expenses,
-    freight,
+    unloading_date_ad, unloading_date_bs,
+    gen, grn, source, vehicle_no, party_bill_no,
+    bill_weight, bill_rate, our_weight,
+    moisture, rejection, duplex, plastic, pin,
+    raining_water, dust, millboard, extra,
+    scrap_tax_birgunj, scrap_tax_simra, scrap_tax_hetauda,
+    other_taxes, other_expenses, freight,
   } = req.body;
 
   try {
     const result = await pool.query(
-      `
-      UPDATE scrap_entries SET
+      `UPDATE scrap_entries SET
         unloading_date_ad = $1, unloading_date_bs = $2,
         gen = $3, grn = $4,
         source = $5, vehicle_no = $6, party_bill_no = $7,
@@ -441,43 +368,25 @@ router.put("/:id", async (req, res) => {
         moisture = $11, rejection = $12, duplex = $13, plastic = $14, pin = $15,
         raining_water = $16, dust = $17, millboard = $18, extra = $19,
         scrap_tax_birgunj = $20, scrap_tax_simra = $21, scrap_tax_hetauda = $22,
-        other_expenses = $23, freight = $24
-      WHERE id = $25
-      RETURNING *
-    `,
+        other_taxes = $23, other_expenses = $24, freight = $25
+      WHERE id = $26
+      RETURNING *`,
       [
-        unloading_date_ad,
-        unloading_date_bs,
-        gen || null,
-        grn || null,
-        source,
-        vehicle_no || null,
-        party_bill_no || null,
-        bill_weight || null,
-        bill_rate || null,
-        our_weight || null,
+        unloading_date_ad, unloading_date_bs,
+        gen || null, grn || null,
+        source, vehicle_no || null, party_bill_no || null,
+        bill_weight || null, bill_rate || null, our_weight || null,
         moisture || null,
-        rejection != null
-          ? rejection
-          : ((parseFloat(duplex) || 0) +
-              (parseFloat(plastic) || 0) +
-              (parseFloat(pin) || 0) +
-              (parseFloat(raining_water) || 0) +
-              (parseFloat(dust) || 0) +
-              (parseFloat(millboard) || 0) +
-              (parseFloat(extra) || 0)),
-        duplex || null,
-        plastic || null,
-        pin || null,
-        raining_water || null,
-        dust || null,
-        millboard || null,
-        extra || null,
-        scrap_tax_birgunj || 0,
-        scrap_tax_simra || 0,
-        scrap_tax_hetauda || 0,
-        other_expenses || 0,
-        freight || 0,
+        rejection != null ? rejection : (
+          (parseFloat(duplex) || 0) + (parseFloat(plastic) || 0) +
+          (parseFloat(pin) || 0) + (parseFloat(raining_water) || 0) +
+          (parseFloat(dust) || 0) + (parseFloat(millboard) || 0) +
+          (parseFloat(extra) || 0)
+        ),
+        duplex || null, plastic || null, pin || null,
+        raining_water || null, dust || null, millboard || null, extra || null,
+        scrap_tax_birgunj || 0, scrap_tax_simra || 0, scrap_tax_hetauda || 0,
+        other_taxes || 0, other_expenses || 0, freight || 0,
         req.params.id,
       ],
     );
@@ -493,9 +402,7 @@ router.put("/:id", async (req, res) => {
 // ─── DELETE entry ───────────────────────────────────────────────────────────
 router.delete("/:id", async (req, res) => {
   try {
-    await pool.query("DELETE FROM scrap_entries WHERE id = $1", [
-      req.params.id,
-    ]);
+    await pool.query("DELETE FROM scrap_entries WHERE id = $1", [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
