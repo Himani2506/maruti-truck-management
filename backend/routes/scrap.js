@@ -54,7 +54,7 @@ function computeNetPayable({
 }
 
 // ─── NET PAYABLE SQL block (no table prefix) ────────────────────────────────
-c// ─── NET PAYABLE SQL block (no table prefix) ────────────────────────────────
+// ─── NET PAYABLE SQL block (no table prefix) ────────────────────────────────
 const NET_PAYABLE_SQL = `
   (bill_weight - COALESCE(our_weight, bill_weight))
   * COALESCE(superseded_rate, bill_rate)
