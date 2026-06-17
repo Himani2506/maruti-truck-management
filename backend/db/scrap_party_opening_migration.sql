@@ -15,6 +15,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS scrap_party_opening_updated_at ON scrap_party_opening;
 CREATE TRIGGER scrap_party_opening_updated_at
-  BEFORE UPDATE ON scrap_party_opening
-  FOR EACH ROW EXECUTE FUNCTION update_scrap_party_opening_updated_at();
+BEFORE UPDATE ON scrap_party_opening
+FOR EACH ROW EXECUTE FUNCTION update_scrap_party_opening_updated_at();

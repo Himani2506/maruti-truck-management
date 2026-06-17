@@ -55,8 +55,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER scrap_entries_updated_at
-  BEFORE UPDATE ON scrap_entries
-  FOR EACH ROW EXECUTE FUNCTION update_scrap_updated_at();
-
   
+DROP TRIGGER IF EXISTS scrap_entries_updated_at ON scrap_entries;
+CREATE TRIGGER scrap_entries_updated_at
+BEFORE UPDATE ON scrap_entries
+FOR EACH ROW EXECUTE FUNCTION update_scrap_updated_at();
+
+DROP TRIGGER IF EXISTS scrap_party_opening_updated_at ON scrap_party_opening;
+CREATE TRIGGER scrap_party_opening_updated_at
+BEFORE UPDATE ON scrap_party_opening
+FOR EACH ROW EXECUTE FUNCTION update_scrap_party_opening_updated_at();
+-- Lab breakdown columns
+ALTER TABLE scrap_entries ADD COLUMN IF NOT EXISTS duplex NUMERIC(8,4);
+ALTER TABLE scrap_entries ADD COLUMN IF NOT EXISTS plastic NUMERIC(8,4);
+ALTER TABLE scrap_entries ADD COLUMN IF NOT EXISTS pin NUMERIC(8,4);
+ALTER TABLE scrap_entries ADD COLUMN IF NOT EXISTS raining_water NUMERIC(8,4);
+ALTER TABLE scrap_entries ADD COLUMN IF NOT EXISTS dust NUMERIC(8,4);
+ALTER TABLE scrap_entries ADD COLUMN IF NOT EXISTS millboard NUMERIC(8,4);
+ALTER TABLE scrap_entries ADD COLUMN IF NOT EXISTS extra NUMERIC(8,4);
