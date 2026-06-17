@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { createScrapEntry , getScrapEntries} from "../../api";
+import { createScrapEntry, getScrapEntries } from "../../api";
 import PartySelector from "../../components/PartySelector";
 import axios from "axios";
 import {
@@ -162,19 +162,27 @@ export default function ScrapEntryForm() {
       setSavingParty(false);
     }
   };
-
- useEffect(() => {
-  getScrapEntries()
-    .then((data) => {
-      const vehicles = [
-        ...new Set(
-          data.map((r) => r.vehicle_no?.trim().toUpperCase()).filter(Boolean)
-        ),
-      ].sort();
-      setVehicleSuggestions(vehicles);
-    })
-    .catch(() => {});
-}, []);
+  useEffect(() => {
+    const handler = (e) => {
+      if (document.activeElement.type === "number") {
+        document.activeElement.blur();
+      }
+    };
+    document.addEventListener("wheel", handler);
+    return () => document.removeEventListener("wheel", handler);
+  }, []);
+  useEffect(() => {
+    getScrapEntries()
+      .then((data) => {
+        const vehicles = [
+          ...new Set(
+            data.map((r) => r.vehicle_no?.trim().toUpperCase()).filter(Boolean),
+          ),
+        ].sort();
+        setVehicleSuggestions(vehicles);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleVehicleInput = (value) => {
     handleChange("vehicle_no", value);
@@ -296,7 +304,7 @@ export default function ScrapEntryForm() {
               >
                 <div style={{ flex: 1 }}>
                   <PartySelector
-                    key={partySelectorKey}  
+                    key={partySelectorKey}
                     value={form.source}
                     onChange={(name, freight) =>
                       setForm((prev) => ({
