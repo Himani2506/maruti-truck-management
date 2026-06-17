@@ -4,7 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import Layout       from './components/Layout';
 import HomePage     from './pages/HomePage';
 import TrucksPage   from './pages/trucks/TrucksPage';
-import ScrapManagement from './pages/ScrapManagement';
+import ScrapManagement from './pages/scrap/ScrapManagement';
 import { useAuth } from "./context/AuthContext";
 import LoginPage from "./pages/LoginPage";
 

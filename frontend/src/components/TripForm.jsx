@@ -20,7 +20,7 @@ const DIESEL_PRICE = 222.5;
 
 const initialForm = {
   truck_id: "",
-  source_id: "",
+  source_ids: [],      // NEW: array like customer_ids
   customer_ids: [],
   mpp_bill_no: "",
   meter_start: "",
@@ -49,6 +49,156 @@ const initialForm = {
 
 const emptyBS = { year: "", month: "", day: "" };
 
+// ── Source multi-select (mirrors CustomerSearchInput) ────────
+function SourceSearchInput({ sources, selectedIds, onToggle }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const inputRef = useRef(null);
+  const wrapRef = useRef(null);
+
+  const filtered = sources.filter(
+    (s) =>
+      !selectedIds.includes(s.id) &&
+      s.name.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const select = (source) => {
+    onToggle(source.id);
+    setQuery("");
+    setHighlighted(0);
+    setOpen(false);
+    inputRef.current?.focus();
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setOpen(true);
+      setHighlighted((h) => Math.min(h + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlighted((h) => Math.max(h - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (open && filtered[highlighted]) select(filtered[highlighted]);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      setQuery("");
+    }
+  };
+
+  const selectedSources = selectedIds
+    .map((id) => sources.find((s) => s.id === id))
+    .filter(Boolean);
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      {selectedSources.length > 0 && (
+        <div style={styles.tagRow}>
+          {selectedSources.map((s, i) => (
+            <div key={s.id} style={{ ...styles.tag, background: i === 0 ? "#1a3a5c" : "#5a7a9c" }}>
+              {i === 0 && (
+                <span style={styles.primaryDot} title="Primary source" />
+              )}
+              <span style={{ fontSize: 12.5 }}>{s.name}</span>
+              <button
+                type="button"
+                onClick={() => onToggle(s.id)}
+                style={styles.tagRemove}
+                title="Remove"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={styles.searchWrap}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          placeholder={
+            selectedSources.length === 0
+              ? "Type to search sources…"
+              : "Add another source…"
+          }
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+            setHighlighted(0);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+          style={styles.input}
+          autoComplete="off"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              inputRef.current?.focus();
+            }}
+            style={styles.clearBtn}
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div style={styles.dropdown}>
+          {filtered.length === 0 ? (
+            <div style={styles.dropdownEmpty}>
+              {query
+                ? `No source matching "${query}"`
+                : selectedIds.length === sources.length
+                  ? "All sources selected"
+                  : "Start typing to search…"}
+            </div>
+          ) : (
+            filtered.map((s, i) => (
+              <div
+                key={s.id}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  select(s);
+                }}
+                onMouseEnter={() => setHighlighted(i)}
+                style={{
+                  ...styles.dropdownItem,
+                  background: i === highlighted ? "#e8f0fe" : "#fff",
+                  fontWeight: i === highlighted ? 600 : 400,
+                }}
+              >
+                <span style={{ fontSize: 13 }}>{s.name}</span>
+                {s.address && (
+                  <span style={styles.dropdownSub}>{s.address.trim()}</span>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Customer multi-select ────────────────────────────────────
 function CustomerSearchInput({
   customers,
   selectedIds,
@@ -414,6 +564,7 @@ function CustomerSearchInput({
   );
 }
 
+// ── Backload supplier select ─────────────────────────────────
 function BackloadSupplierSelect({
   backloads,
   value,
@@ -904,6 +1055,11 @@ export default function TripForm({ onSuccess, editTripId }) {
     .filter(Boolean);
   const firstCustomer = selectedCustomers[0] || null;
 
+  // Selected sources derived
+  const selectedSources = (form.source_ids || [])
+    .map((id) => sources.find((s) => s.id === id))
+    .filter(Boolean);
+
   useEffect(() => {
     getTrucks().then(setTrucks);
     getSources().then(setSources);
@@ -943,6 +1099,18 @@ export default function TripForm({ onSuccess, editTripId }) {
     });
   };
 
+  // NEW: toggle source selection
+  const toggleSource = (id) => {
+    setForm((prev) => {
+      const existing = prev.source_ids || [];
+      if (existing.includes(id)) {
+        return { ...prev, source_ids: existing.filter((x) => x !== id) };
+      } else {
+        return { ...prev, source_ids: [...existing, id] };
+      }
+    });
+  };
+
   const handleCustomerCreated = (newCustomer) => {
     setCustomers((prev) => [...prev, newCustomer]);
     toggleCustomer(newCustomer.id);
@@ -956,7 +1124,7 @@ export default function TripForm({ onSuccess, editTripId }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.truck_id || !form.source_id || !form.customer_ids.length) {
+    if (!form.truck_id || !form.source_ids.length || !form.customer_ids.length) {
       toast.error("Please fill all required fields.");
       return;
     }
@@ -970,6 +1138,8 @@ export default function TripForm({ onSuccess, editTripId }) {
       ...form,
       customer_id: form.customer_ids[0],
       customer_ids: form.customer_ids,
+      source_id: form.source_ids[0],   // primary source
+      source_ids: form.source_ids,      // all sources
       start_date: startAD,
       end_date: endAD || null,
       distance_km: distanceKm,
@@ -1035,7 +1205,12 @@ export default function TripForm({ onSuccess, editTripId }) {
       .then((trip) => {
         setForm({
           truck_id: String(trip.truck_id || ""),
-          source_id: String(trip.source_id || ""),
+          // Restore source_ids: prefer stored array, else wrap single source_id
+          source_ids: Array.isArray(trip.source_ids) && trip.source_ids.length
+            ? trip.source_ids.map(Number)
+            : trip.source_id
+              ? [Number(trip.source_id)]
+              : [],
           customer_ids: trip.customer_ids?.length
             ? trip.customer_ids
             : trip.customer_id
@@ -1135,25 +1310,46 @@ export default function TripForm({ onSuccess, editTripId }) {
         </Row>
       </Section>
 
-      {/* ── 2. Source ── */}
-      <Section title="2. Source">
-        <Field label="From (Source) *">
-          <select
-            name="source_id"
-            value={form.source_id}
-            onChange={handleChange}
-            style={styles.input}
-            required
-            onKeyDown={handleEnter}
-          >
-            <option value="">Select source</option>
-            {sources.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+      {/* ── 2. Source (multi-select) ── */}
+      <Section title="2. Source(s) *">
+        <Field label="From (Source) — select one or more *">
+          <SourceSearchInput
+            sources={sources}
+            selectedIds={form.source_ids}
+            onToggle={toggleSource}
+          />
+          {selectedSources.length === 0 && (
+            <span style={{ fontSize: 11, color: "#e07000", marginTop: 4 }}>
+              Search and select at least one source
+            </span>
+          )}
         </Field>
+
+        {/* Show selected sources summary */}
+        {selectedSources.length > 0 && (
+          <div style={{ marginTop: 6 }}>
+            {selectedSources.map((s, i) => (
+              <div
+                key={s.id}
+                style={{
+                  background: i === 0 ? "#e8f0fe" : "#f5f5f5",
+                  border: `1px solid ${i === 0 ? "#a8c0e8" : "#d0d0d0"}`,
+                  borderRadius: 6,
+                  padding: "8px 12px",
+                  marginBottom: 6,
+                  fontSize: 13,
+                }}
+              >
+                <b>{i === 0 ? "🥇 Primary" : `#${i + 1}`}:</b> {s.name}
+                {s.address && (
+                  <span style={{ color: "#666", marginLeft: 8 }}>
+                    — {s.address}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </Section>
 
       {/* ── 3. Trip Details ── */}

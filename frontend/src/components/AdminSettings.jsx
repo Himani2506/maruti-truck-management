@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import toast from "react-hot-toast";
 
+
 const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:4000";
 const api = axios.create({ baseURL: `${BASE_URL}/api` });
 
@@ -20,6 +21,10 @@ export default function AdminSettings() {
   const [rates, setRates] = useState([]);
   const [ratesLoading, setRatesLoading] = useState(true);
   const [rateSearch, setRateSearch] = useState("");
+  // NEW: sources state
+  const [sources, setSources] = useState([]);
+  const [sourcesLoading, setSourcesLoading] = useState(true);
+  const [sourceSearch, setSourceSearch] = useState("");
 
   useEffect(() => {
     api
@@ -33,6 +38,13 @@ export default function AdminSettings() {
       .then((r) => setRates(r.data))
       .catch(() => setRates([]))
       .finally(() => setRatesLoading(false));
+
+    // NEW: fetch sources with trip usage stats
+    api
+      .get("/sources")
+      .then((r) => setSources(r.data))
+      .catch(() => setSources([]))
+      .finally(() => setSourcesLoading(false));
   }, []);
 
   const handleChange = (e) => {
@@ -61,6 +73,13 @@ export default function AdminSettings() {
         .includes(rateSearch.toLowerCase()),
   );
 
+  // NEW: filter sources
+  const filteredSources = sources.filter(
+    (s) =>
+      s.name.toLowerCase().includes(sourceSearch.toLowerCase()) ||
+      (s.address || "").toLowerCase().includes(sourceSearch.toLowerCase()),
+  );
+
   const fmt = (n) => (n != null ? `NPR ${Number(n).toLocaleString()}` : "—");
 
   if (loading)
@@ -69,7 +88,7 @@ export default function AdminSettings() {
         Loading settings...
       </p>
     );
-  
+
   return (
     <div style={styles.container}>
       {/* ── Rate Settings ── */}
@@ -145,6 +164,81 @@ export default function AdminSettings() {
         {saving ? "Saving..." : "💾 Save Settings"}
       </button>
 
+      {/* ── Sources DB ── NEW SECTION ── */}
+      <div style={styles.ratesSection}>
+        <div style={styles.ratesHeader}>
+          <div>
+            <h2 style={styles.heading}>🗺️ Sources</h2>
+            <p style={styles.sub}>
+              All loading sources configured in the database. These appear in
+              the trip form's multi-source selector.
+            </p>
+          </div>
+          <input
+            type="text"
+            placeholder="Search source..."
+            value={sourceSearch}
+            onChange={(e) => setSourceSearch(e.target.value)}
+            style={styles.searchInput}
+          />
+        </div>
+
+        {sourcesLoading ? (
+          <p style={{ color: "#888", fontSize: 13 }}>Loading sources...</p>
+        ) : filteredSources.length === 0 ? (
+          <p style={{ color: "#aaa", fontSize: 13 }}>No sources found.</p>
+        ) : (
+          <div style={styles.tableWrap}>
+            <table style={styles.table}>
+              <thead>
+                <tr style={styles.thead}>
+                  <th style={styles.th}>#</th>
+                  <th style={styles.th}>Source Name</th>
+                  <th style={styles.th}>Address</th>
+                  <th style={styles.th}>Latitude</th>
+                  <th style={styles.th}>Longitude</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSources.map((s, i) => (
+                  <tr
+                    key={s.id}
+                    style={{ background: i % 2 === 0 ? "#fff" : "#f7fafd" }}
+                  >
+                    <td style={{ ...styles.td, color: "#999", width: 40 }}>
+                      {s.id}
+                    </td>
+                    <td style={{ ...styles.td, fontWeight: 600 }}>
+                      {s.name}
+                    </td>
+                    <td style={{ ...styles.td, color: "#666" }}>
+                      {s.address || "—"}
+                    </td>
+                    <td style={{ ...styles.td, color: "#666", fontFamily: "monospace" }}>
+                      {s.lat || "—"}
+                    </td>
+                    <td style={{ ...styles.td, color: "#666", fontFamily: "monospace" }}>
+                      {s.lng || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Sources summary pill */}
+        {filteredSources.length > 0 && (
+          <div style={{ ...styles.pills, marginBottom: 32 }}>
+            <Pill
+              label="Total sources"
+              value={sources.length}
+              sub="in database"
+            />
+          </div>
+        )}
+      </div>
+
       {/* ── Customer Freight Rates ── */}
       <div style={styles.ratesSection}>
         <div style={styles.ratesHeader}>
@@ -208,21 +302,14 @@ export default function AdminSettings() {
                       style={{ background: i % 2 === 0 ? "#fff" : "#f7fafd" }}
                     >
                       <td
-                        style={{ ...styles.td, fontWeight: 600, maxWidth: 220 }}
+                        style={{ ...styles.td, fontWeight: 600, minWidth: 160 }}
                       >
-                        <span title={r.name} style={styles.ellipsis}>
-                          {r.name}
-                        </span>
+                        {r.name}
                       </td>
                       <td
-                        style={{ ...styles.td, color: "#666", maxWidth: 160 }}
+                        style={{ ...styles.td, color: "#666", minWidth: 160 }}
                       >
-                        <span
-                          title={r.destination_address}
-                          style={styles.ellipsis}
-                        >
-                          {r.destination_address || "—"}
-                        </span>
+                        {r.destination_address || "—"}
                       </td>
                       <td style={styles.td}>{fmt(r.freight_actual)}</td>
                       <td
@@ -363,7 +450,7 @@ export default function AdminSettings() {
           </div>
         )}
 
-       <CreateUserForm />  
+        <CreateUserForm />
       </div>
     </div>
   );
@@ -513,7 +600,7 @@ const styles = {
     cursor: "pointer",
     marginBottom: 40,
   },
-  ratesSection: { borderTop: "2px solid #e8eef4", paddingTop: 32 },
+  ratesSection: { borderTop: "2px solid #e8eef4", paddingTop: 32, marginBottom: 8 },
   ratesHeader: {
     display: "flex",
     justifyContent: "space-between",
@@ -547,13 +634,8 @@ const styles = {
   td: {
     padding: "8px 12px",
     borderBottom: "1px solid #e8eef4",
-    whiteSpace: "nowrap",
-  },
-  ellipsis: {
-    display: "block",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    whiteSpace: "normal",
+    wordBreak: "break-word",
   },
   tripBadge: {
     background: "#e8f0fe",
