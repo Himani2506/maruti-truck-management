@@ -855,241 +855,123 @@ export default function ScrapPartyView() {
             )}
 
             {/* ── FREIGHT TAB ── */}
-            {partySheetTab === "freight" && (
-              <div
-                style={{
-                  overflowX: "auto",
-                  borderRadius: 8,
-                  border: "1px solid #e2e8f0",
-                }}
-              >
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: 12,
-                  }}
-                >
-                  <thead>
-                    <tr style={{ background: "#1a3c5e" }}>
-                      {[
-                        "#",
-                        "GRN",
-                        "Bill Weight",
-                        "Freight",
-                        "Hetauda Tax",
-                        "Simra Tax",
-                        "Birgunj Tax",
-                        "Other Exp",
-                        "Total Expenses",
-                        "Per KG Cost",
-                        "Net Payable",
-                      ].map((h) => (
-                        <th
-                          key={h}
-                          style={{
-                            padding: "10px 10px",
-                            textAlign: "right",
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: "#fff",
-                            whiteSpace: "nowrap",
-                            borderRight: "1px solid rgba(255,255,255,0.08)",
-                          }}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {partySheetModal.rows.map((row, i) => (
-                      <tr
-                        key={row.id}
-                        style={{ background: i % 2 === 0 ? "#fff" : "#f8fafc" }}
-                      >
-                        <td style={{ ...td, textAlign: "right" }}>{row.id}</td>
-                        <td style={{ ...td, textAlign: "right" }}>
-                          {row.grn || "—"}
-                        </td>
-                        <td style={{ ...td, textAlign: "right" }}>
-                          {fmtN(row.bill_weight)}
-                        </td>
-                        <td style={{ ...td, textAlign: "right" }}>
-                          {fmt(row.freight)}
-                        </td>
-                        <td style={{ ...td, textAlign: "right" }}>
-                          {fmt(row.scrap_tax_hetauda)}
-                        </td>
-                        <td style={{ ...td, textAlign: "right" }}>
-                          {fmt(row.scrap_tax_simra)}
-                        </td>
-                        <td style={{ ...td, textAlign: "right" }}>
-                          {fmt(row.scrap_tax_birgunj)}
-                        </td>
-                        <td style={{ ...td, textAlign: "right" }}>
-                          {fmt(row.other_expenses)}
-                        </td>
-                        <td
-                          style={{ ...td, textAlign: "right", fontWeight: 600 }}
-                        >
-                          NPR {fmt(row.total_expenses)}
-                        </td>
-                        <td style={{ ...td, textAlign: "right" }}>
-                          NPR {fmt(row.per_kg_cost)}/kg
-                        </td>
-                        <td
-                          style={{
-                            ...td,
-                            textAlign: "right",
-                            fontWeight: 700,
-                            color: "#276749",
-                          }}
-                        >
-                          NPR {fmt(row.net_payable)}
-                        </td>
-                      </tr>
-                    ))}
-                    {partySheetModal.rows.length > 0 &&
-                      (() => {
-                        const t = partySheetModal.rows.reduce(
-                          (acc, r) => ({
-                            bill_weight:
-                              acc.bill_weight +
-                              (parseFloat(r.bill_weight) || 0),
-                            freight: acc.freight + (parseFloat(r.freight) || 0),
-                            scrap_tax_hetauda:
-                              acc.scrap_tax_hetauda +
-                              (parseFloat(r.scrap_tax_hetauda) || 0),
-                            scrap_tax_simra:
-                              acc.scrap_tax_simra +
-                              (parseFloat(r.scrap_tax_simra) || 0),
-                            scrap_tax_birgunj:
-                              acc.scrap_tax_birgunj +
-                              (parseFloat(r.scrap_tax_birgunj) || 0),
-                            other_expenses:
-                              acc.other_expenses +
-                              (parseFloat(r.other_expenses) || 0),
-                            total_expenses:
-                              acc.total_expenses +
-                              (parseFloat(r.total_expenses) || 0),
-                            net_payable:
-                              acc.net_payable +
-                              (parseFloat(r.net_payable) || 0),
-                          }),
-                          {
-                            bill_weight: 0,
-                            freight: 0,
-                            scrap_tax_hetauda: 0,
-                            scrap_tax_simra: 0,
-                            scrap_tax_birgunj: 0,
-                            other_expenses: 0,
-                            total_expenses: 0,
-                            net_payable: 0,
-                          },
-                        );
-                        return (
-                          <tr
-                            style={{ background: "#1a3c5e", fontWeight: 700 }}
-                          >
-                            <td style={{ ...td, color: "#fff" }} colSpan={2}>
-                              TOTAL
-                            </td>
-                            <td
-                              style={{
-                                ...td,
-                                textAlign: "right",
-                                color: "#fff",
-                              }}
-                            >
-                              {fmtN(t.bill_weight)}
-                            </td>
-                            <td
-                              style={{
-                                ...td,
-                                textAlign: "right",
-                                color: "#fff",
-                              }}
-                            >
-                              {fmt(t.freight)}
-                            </td>
-                            <td
-                              style={{
-                                ...td,
-                                textAlign: "right",
-                                color: "#fff",
-                              }}
-                            >
-                              {fmt(t.scrap_tax_hetauda)}
-                            </td>
-                            <td
-                              style={{
-                                ...td,
-                                textAlign: "right",
-                                color: "#fff",
-                              }}
-                            >
-                              {fmt(t.scrap_tax_simra)}
-                            </td>
-                            <td
-                              style={{
-                                ...td,
-                                textAlign: "right",
-                                color: "#fff",
-                              }}
-                            >
-                              {fmt(t.scrap_tax_birgunj)}
-                            </td>
-                            <td
-                              style={{
-                                ...td,
-                                textAlign: "right",
-                                color: "#fff",
-                              }}
-                            >
-                              {fmt(t.other_expenses)}
-                            </td>
-                            <td
-                              style={{
-                                ...td,
-                                textAlign: "right",
-                                color: "#fff",
-                              }}
-                            >
-                              NPR {fmt(t.total_expenses)}
-                            </td>
-                            <td style={{ ...td, color: "#fff" }}>—</td>
-                            <td
-                              style={{
-                                ...td,
-                                textAlign: "right",
-                                color: "#90cdf4",
-                              }}
-                            >
-                              NPR {fmt(t.net_payable)}
-                            </td>
-                          </tr>
-                        );
-                      })()}
-                    {partySheetModal.rows.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={11}
-                          style={{
-                            textAlign: "center",
-                            color: "#a0aec0",
-                            padding: 40,
-                            fontSize: 13,
-                          }}
-                        >
-                          No entries for this party.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+{partySheetTab === "freight" && (
+  <>
+    {/* Summary Cards */}
+    {(() => {
+      const totals = partySheetModal.rows.reduce((acc, r) => ({
+        bill_weight: acc.bill_weight + (parseFloat(r.bill_weight) || 0),
+        our_weight: acc.our_weight + (parseFloat(r.our_weight) || 0),
+        freight: acc.freight + (parseFloat(r.freight) || 0),
+        scrap_tax_hetauda: acc.scrap_tax_hetauda + (parseFloat(r.scrap_tax_hetauda) || 0),
+        scrap_tax_simra: acc.scrap_tax_simra + (parseFloat(r.scrap_tax_simra) || 0),
+        scrap_tax_birgunj: acc.scrap_tax_birgunj + (parseFloat(r.scrap_tax_birgunj) || 0),
+        other_taxes: acc.other_taxes + (parseFloat(r.other_taxes) || 0),
+        total_expenses: acc.total_expenses + (parseFloat(r.total_expenses) || 0),
+        net_payable: acc.net_payable + (parseFloat(r.net_payable) || 0),
+      }), {
+        bill_weight: 0, our_weight: 0, freight: 0,
+        scrap_tax_hetauda: 0, scrap_tax_simra: 0, scrap_tax_birgunj: 0,
+        other_taxes: 0, total_expenses: 0, net_payable: 0,
+      });
+      const perKg = totals.bill_weight > 0 ? totals.total_expenses / totals.bill_weight : 0;
+      return (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
+          {[
+            { label: "Total Bill Weight", value: `${fmtN(totals.bill_weight)} kg` },
+            { label: "Total Our Weight", value: `${fmtN(totals.our_weight)} kg` },
+            { label: "Total Freight", value: `NPR ${fmt(totals.freight)}` },
+            { label: "Hetauda Tax", value: `NPR ${fmt(totals.scrap_tax_hetauda)}` },
+            { label: "Simra Tax", value: `NPR ${fmt(totals.scrap_tax_simra)}` },
+            { label: "Birgunj Tax", value: `NPR ${fmt(totals.scrap_tax_birgunj)}` },
+            { label: "Other Tax", value: `NPR ${fmt(totals.other_taxes)}` },
+            { label: "Avg Per KG Cost", value: `NPR ${fmt(perKg)}/kg` },
+            { label: "Total Expenses", value: `NPR ${fmt(totals.total_expenses)}`, highlight: true },
+            { label: "Net Payable", value: `NPR ${fmt(totals.net_payable)}`, green: true },
+          ].map((item) => (
+            <div key={item.label} style={{
+              background: item.green ? "#f0fff4" : item.highlight ? "#ebf8ff" : "#f7fafc",
+              border: `1px solid ${item.green ? "#9ae6b4" : item.highlight ? "#90cdf4" : "#e2e8f0"}`,
+              borderRadius: 8, padding: "10px 14px",
+            }}>
+              <div style={{ fontSize: 10, color: "#718096", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+                {item.label}
               </div>
-            )}
+              <div style={{ fontSize: 14, fontWeight: 700, color: item.green ? "#276749" : item.highlight ? "#2b6cb0" : "#2d3748" }}>
+                {item.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    })()}
+
+    {/* Table */}
+    <div style={{ overflowX: "auto", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead>
+          <tr style={{ background: "#1a3c5e" }}>
+            {["#", "GRN", "Bill Weight", "Freight", "Hetauda Tax", "Simra Tax", "Birgunj Tax", "Other Tax", "Total Expenses", "Per KG Cost", "Net Payable"].map((h) => (
+              <th key={h} style={{ padding: "10px 10px", textAlign: "right", fontSize: 11, fontWeight: 700, color: "#fff", whiteSpace: "nowrap", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {partySheetModal.rows.map((row, i) => (
+            <tr key={row.id} style={{ background: i % 2 === 0 ? "#fff" : "#f8fafc" }}>
+              <td style={{ ...td, textAlign: "right" }}>{row.id}</td>
+              <td style={{ ...td, textAlign: "right" }}>{row.grn || "—"}</td>
+              <td style={{ ...td, textAlign: "right" }}>{fmtN(row.bill_weight)}</td>
+              <td style={{ ...td, textAlign: "right" }}>{fmt(row.freight)}</td>
+              <td style={{ ...td, textAlign: "right" }}>{fmt(row.scrap_tax_hetauda)}</td>
+              <td style={{ ...td, textAlign: "right" }}>{fmt(row.scrap_tax_simra)}</td>
+              <td style={{ ...td, textAlign: "right" }}>{fmt(row.scrap_tax_birgunj)}</td>
+              <td style={{ ...td, textAlign: "right" }}>{fmt(row.other_taxes)}</td>
+              <td style={{ ...td, textAlign: "right", fontWeight: 600 }}>NPR {fmt(row.total_expenses)}</td>
+              <td style={{ ...td, textAlign: "right" }}>NPR {fmt(row.per_kg_cost)}/kg</td>
+              <td style={{ ...td, textAlign: "right", fontWeight: 700, color: "#276749" }}>NPR {fmt(row.net_payable)}</td>
+            </tr>
+          ))}
+          {partySheetModal.rows.length > 0 && (() => {
+            const t = partySheetModal.rows.reduce((acc, r) => ({
+              bill_weight: acc.bill_weight + (parseFloat(r.bill_weight) || 0),
+              freight: acc.freight + (parseFloat(r.freight) || 0),
+              scrap_tax_hetauda: acc.scrap_tax_hetauda + (parseFloat(r.scrap_tax_hetauda) || 0),
+              scrap_tax_simra: acc.scrap_tax_simra + (parseFloat(r.scrap_tax_simra) || 0),
+              scrap_tax_birgunj: acc.scrap_tax_birgunj + (parseFloat(r.scrap_tax_birgunj) || 0),
+              other_taxes: acc.other_taxes + (parseFloat(r.other_taxes) || 0),
+              total_expenses: acc.total_expenses + (parseFloat(r.total_expenses) || 0),
+              net_payable: acc.net_payable + (parseFloat(r.net_payable) || 0),
+            }), { bill_weight: 0, freight: 0, scrap_tax_hetauda: 0, scrap_tax_simra: 0, scrap_tax_birgunj: 0, other_taxes: 0, total_expenses: 0, net_payable: 0 });
+            return (
+              <tr style={{ background: "#1a3c5e", fontWeight: 700 }}>
+                <td style={{ ...td, color: "#fff" }} colSpan={2}>TOTAL</td>
+                <td style={{ ...td, textAlign: "right", color: "#fff" }}>{fmtN(t.bill_weight)}</td>
+                <td style={{ ...td, textAlign: "right", color: "#fff" }}>{fmt(t.freight)}</td>
+                <td style={{ ...td, textAlign: "right", color: "#fff" }}>{fmt(t.scrap_tax_hetauda)}</td>
+                <td style={{ ...td, textAlign: "right", color: "#fff" }}>{fmt(t.scrap_tax_simra)}</td>
+                <td style={{ ...td, textAlign: "right", color: "#fff" }}>{fmt(t.scrap_tax_birgunj)}</td>
+                <td style={{ ...td, textAlign: "right", color: "#fff" }}>{fmt(t.other_taxes)}</td>
+                <td style={{ ...td, textAlign: "right", color: "#fff" }}>NPR {fmt(t.total_expenses)}</td>
+                <td style={{ ...td, color: "#fff" }}>—</td>
+                <td style={{ ...td, textAlign: "right", color: "#90cdf4" }}>NPR {fmt(t.net_payable)}</td>
+              </tr>
+            );
+          })()}
+          {partySheetModal.rows.length === 0 && (
+            <tr>
+              <td colSpan={11} style={{ textAlign: "center", color: "#a0aec0", padding: 40, fontSize: 13 }}>
+                No entries for this party.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </>
+)}
 
             <div style={{ marginTop: 16, textAlign: "right" }}>
               <button

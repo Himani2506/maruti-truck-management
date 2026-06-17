@@ -81,6 +81,7 @@ export default function ScrapEntryForm() {
   };
 
   const handleSubmit = async () => {
+    if (submitting) return; // ← guard against double call
     if (!form.source)
       return setSubmitMsg({
         type: "error",
@@ -93,6 +94,7 @@ export default function ScrapEntryForm() {
       });
     if (!form.unloading_date_bs)
       return setSubmitMsg({ type: "error", text: "BS date is required." });
+
     setSubmitting(true);
     setSubmitMsg(null);
     try {
@@ -122,7 +124,6 @@ export default function ScrapEntryForm() {
       setSubmitting(false);
     }
   };
-
   const formKeyDown = (e) => {
     if (e.key === "Enter" && e.target.tagName !== "BUTTON") {
       e.preventDefault();
@@ -132,10 +133,9 @@ export default function ScrapEntryForm() {
       const arr = Array.from(inputs);
       const idx = arr.indexOf(e.target);
       if (idx > -1 && arr[idx + 1]) {
-        arr[idx + 1].focus();
-      } else {
-        handleSubmit();
+        arr[idx + 1].focus(); // ← only move focus, never auto-submit
       }
+      // removed the else handleSubmit() — user must click Save explicitly
     }
   };
 
