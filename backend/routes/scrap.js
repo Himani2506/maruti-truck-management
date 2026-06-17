@@ -2,48 +2,82 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db/setup');
 
-// ─── Helper: compute net_payable ───────────────────────────────────────────
-function computeNetPayable({ bill_weight, bill_rate, our_weight, moisture, rejection,
+// ─── Reusable lab total expression ─────────────────────────────────────────
+// Use this everywhere instead of (moisture + rejection)
+const LAB_TOTAL = `(
+  COALESCE(moisture,0) + COALESCE(duplex,0) + COALESCE(plastic,0) +
+  COALESCE(pin,0) + COALESCE(raining_water,0) + COALESCE(dust,0) +
+  COALESCE(millboard,0) + COALESCE(extra,0)
+)`;
+
+const E_LAB_TOTAL = `(
+  COALESCE(e.moisture,0) + COALESCE(e.duplex,0) + COALESCE(e.plastic,0) +
+  COALESCE(e.pin,0) + COALESCE(e.raining_water,0) + COALESCE(e.dust,0) +
+  COALESCE(e.millboard,0) + COALESCE(e.extra,0)
+)`;
+
+// ─── Helper: compute net_payable (JS, used nowhere currently but kept) ──────
+function computeNetPayable({ bill_weight, bill_rate, our_weight, moisture,
+  duplex, plastic, pin, raining_water, dust, millboard, extra,
   superseded_rate, superseded_rejection }) {
-  const bw = parseFloat(bill_weight) || 0;
-  const br = parseFloat(bill_rate) || 0;
-  const ow = parseFloat(our_weight) || 0;
-  const mo = parseFloat(moisture) || 0;
-  const rej = parseFloat(rejection) || 0;
-  const sr = superseded_rate != null ? parseFloat(superseded_rate) : null;
-  const srej = superseded_rejection != null ? parseFloat(superseded_rejection) : null;
+  const bw  = parseFloat(bill_weight)  || 0;
+  const br  = parseFloat(bill_rate)    || 0;
+  const ow  = parseFloat(our_weight)   || 0;
+  const labTotal =
+    (parseFloat(moisture)      || 0) +
+    (parseFloat(duplex)        || 0) +
+    (parseFloat(plastic)       || 0) +
+    (parseFloat(pin)           || 0) +
+    (parseFloat(raining_water) || 0) +
+    (parseFloat(dust)          || 0) +
+    (parseFloat(millboard)     || 0) +
+    (parseFloat(extra)         || 0);
+  const sr   = superseded_rate       != null ? parseFloat(superseded_rate)       : null;
+  const srej = superseded_rejection  != null ? parseFloat(superseded_rejection)  : null;
 
-  const shortage = bw - ow;
-  const vat = bw * br * 0.13;
-  const effectiveRate = sr !== null ? sr : br;
-
-  const effectiveTotalLab = srej !== null ? srej : (mo + rej);
-
-
-  const labDeductionRupees = bw * effectiveRate * effectiveTotalLab / 100;
-
-  // net_payable = our_weight * effective_rate + vat - lab_deduction_in_rupees
-  const netPayable = (bw - shortage) * effectiveRate + vat - labDeductionRupees;
+  const shortage        = bw - ow;
+  const vat             = bw * br * 0.13;
+  const effectiveRate   = sr   !== null ? sr   : br;
+  const effectiveLab    = srej !== null ? srej : labTotal;
+  const labDeduction    = bw * effectiveRate * effectiveLab / 100;
+  const netPayable      = (bw - shortage) * effectiveRate + vat - labDeduction;
   return parseFloat(netPayable.toFixed(2));
 }
+
+// ─── NET PAYABLE SQL block (no table prefix) ────────────────────────────────
+const NET_PAYABLE_SQL = `
+  CASE
+    WHEN superseded_rate IS NOT NULL OR superseded_rejection IS NOT NULL THEN
+      (bill_weight - shortage) * COALESCE(superseded_rate, bill_rate)
+      + (bill_weight * bill_rate * 0.13)
+      - (bill_weight * bill_rate * COALESCE(superseded_rejection, ${LAB_TOTAL}) / 100)
+    ELSE
+      (bill_weight - shortage) * bill_rate
+      + (bill_weight * bill_rate * 0.13)
+      - (bill_weight * bill_rate * ${LAB_TOTAL} / 100)
+  END
+`;
+
+// ─── NET PAYABLE SQL block (e. prefix for JOINs) ────────────────────────────
+const E_NET_PAYABLE_SQL = `
+  CASE
+    WHEN e.superseded_rate IS NOT NULL OR e.superseded_rejection IS NOT NULL THEN
+      (e.bill_weight - e.shortage) * COALESCE(e.superseded_rate, e.bill_rate)
+      + (e.bill_weight * e.bill_rate * 0.13)
+      - (e.bill_weight * e.bill_rate * COALESCE(e.superseded_rejection, ${E_LAB_TOTAL}) / 100)
+    ELSE
+      (e.bill_weight - e.shortage) * e.bill_rate
+      + (e.bill_weight * e.bill_rate * 0.13)
+      - (e.bill_weight * e.bill_rate * ${E_LAB_TOTAL} / 100)
+  END
+`;
 
 // ─── GET all entries (daily view) ──────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT *,
-        -- net payable with overrides applied
-        CASE
-          WHEN superseded_rate IS NOT NULL OR superseded_rejection IS NOT NULL THEN
-            (bill_weight - shortage) * COALESCE(superseded_rate, bill_rate)
-            + (bill_weight * bill_rate * 0.13)
-            - (bill_weight * bill_rate * COALESCE(superseded_rejection, moisture + rejection) / 100)
-          ELSE
-            (bill_weight - shortage) * bill_rate
-            + (bill_weight * bill_rate * 0.13)
-            - (bill_weight * bill_rate * (moisture + rejection) / 100)
-        END AS net_payable,
-        -- flag for override
+        ${NET_PAYABLE_SQL} AS net_payable,
         (superseded_rate IS NOT NULL OR superseded_rejection IS NOT NULL) AS is_overridden
       FROM scrap_entries
       ORDER BY unloading_date_ad DESC, id DESC
@@ -55,35 +89,18 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ─── GET party-wise summary (new full version) ─────────────────────────────
+// ─── GET party-wise summary ─────────────────────────────────────────────────
 router.get('/party-summary', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
         e.source AS party_name,
         COALESCE(o.opening, 0) AS opening,
-        -- 82-83 purchase = sum of net_payable
-        SUM(
-          CASE
-            WHEN e.superseded_rate IS NOT NULL OR e.superseded_rejection IS NOT NULL THEN
-              (e.bill_weight - e.shortage) * COALESCE(e.superseded_rate, e.bill_rate)
-              + (e.bill_weight * e.bill_rate * 0.13)
-              - (e.bill_weight * e.bill_rate * COALESCE(e.superseded_rejection, e.moisture + e.rejection) / 100)
-            ELSE
-              (e.bill_weight - e.shortage) * e.bill_rate
-              + (e.bill_weight * e.bill_rate * 0.13)
-              - (e.bill_weight * e.bill_rate * (e.moisture + e.rejection) / 100)
-          END
-        ) AS purchase_8283,
-        -- deduction = sum of bill_weight * bill_rate * total_lab_report / 100
-        SUM(e.bill_weight * e.bill_rate * (e.moisture + e.rejection) / 100) AS deduction,
-        -- weight_loss = sum of shortage
+        SUM(${E_NET_PAYABLE_SQL}) AS purchase_8283,
+        SUM(e.bill_weight * e.bill_rate * ${E_LAB_TOTAL} / 100) AS deduction,
         SUM(e.shortage) AS weight_loss,
-        -- rate_diff = sum of (superseded_rate - bill_rate) for overridden entries only
         SUM(CASE WHEN e.superseded_rate IS NOT NULL THEN e.superseded_rate - e.bill_rate ELSE 0 END) AS rate_diff,
-        -- rejection_rate = sum of rejection
-        SUM(e.rejection) AS rejection_rate,
-        -- superseded_rejection_rate = sum of superseded_rejection
+        SUM(${E_LAB_TOTAL}) AS rejection_rate,
         SUM(COALESCE(e.superseded_rejection, 0)) AS superseded_rejection_rate
       FROM scrap_entries e
       LEFT JOIN scrap_party_opening o ON o.party_name = e.source
@@ -97,30 +114,20 @@ router.get('/party-summary', async (req, res) => {
   }
 });
 
-// ─── GET party sheet (per-entry detail for one party) ──────────────────────
+// ─── GET party sheet ────────────────────────────────────────────────────────
 router.get('/party-sheet/:partyName', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
         id, source AS party_name, grn, bill_weight, freight,
-        scrap_tax_hetauda, scrap_tax_simra, scrap_tax_birgunj,
-        other_expenses,
+        scrap_tax_hetauda, scrap_tax_simra, scrap_tax_birgunj, other_expenses,
         (scrap_tax_hetauda + scrap_tax_simra + scrap_tax_birgunj + other_expenses + freight) AS total_expenses,
         CASE
           WHEN bill_weight > 0 THEN
             (scrap_tax_hetauda + scrap_tax_simra + scrap_tax_birgunj + other_expenses + freight) / bill_weight
           ELSE 0
         END AS per_kg_cost,
-        CASE
-          WHEN superseded_rate IS NOT NULL OR superseded_rejection IS NOT NULL THEN
-            (bill_weight - shortage) * COALESCE(superseded_rate, bill_rate)
-            + (bill_weight * bill_rate * 0.13)
-            - (bill_weight * bill_rate * COALESCE(superseded_rejection, moisture + rejection) / 100)
-          ELSE
-            (bill_weight - shortage) * bill_rate
-            + (bill_weight * bill_rate * 0.13)
-            - (bill_weight * bill_rate * (moisture + rejection) / 100)
-        END AS net_payable
+        ${NET_PAYABLE_SQL} AS net_payable
       FROM scrap_entries
       WHERE source = $1
       ORDER BY unloading_date_ad DESC, id DESC
@@ -161,7 +168,6 @@ router.put('/opening/:partyName', async (req, res) => {
   }
 });
 
-
 // ─── GET all parties ────────────────────────────────────────────────────────
 router.get('/parties', async (req, res) => {
   try {
@@ -189,7 +195,6 @@ router.post('/parties', async (req, res) => {
   }
 });
 
-
 // ─── GET single entry ───────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
@@ -209,12 +214,11 @@ router.post('/', async (req, res) => {
     source, vehicle_no, party_bill_no,
     bill_weight, bill_rate,
     our_weight,
-    moisture, rejection,
+    moisture, duplex, plastic, pin, raining_water, dust, millboard, extra,
     scrap_tax_birgunj, scrap_tax_simra, scrap_tax_hetauda,
     other_expenses, freight
   } = req.body;
 
-  // Basic validation
   if (!unloading_date_ad || !unloading_date_bs || !source) {
     return res.status(400).json({ error: 'unloading_date_ad, unloading_date_bs, and source are required' });
   }
@@ -225,23 +229,23 @@ router.post('/', async (req, res) => {
         unloading_date_ad, unloading_date_bs,
         gen, grn,
         source, vehicle_no, party_bill_no,
-        bill_weight, bill_rate,
-        our_weight,
-        moisture, rejection,
+        bill_weight, bill_rate, our_weight,
+        moisture, duplex, plastic, pin, raining_water, dust, millboard, extra,
         scrap_tax_birgunj, scrap_tax_simra, scrap_tax_hetauda,
         other_expenses, freight
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7,
-        $8, $9, $10, $11, $12,
-        $13, $14, $15, $16, $17
+        $8, $9, $10,
+        $11, $12, $13, $14, $15, $16, $17, $18,
+        $19, $20, $21, $22, $23
       ) RETURNING *
     `, [
       unloading_date_ad, unloading_date_bs,
       gen || null, grn || null,
       source, vehicle_no || null, party_bill_no || null,
-      bill_weight || null, bill_rate || null,
-      our_weight || null,
-      moisture || null, rejection || null,
+      bill_weight || null, bill_rate || null, our_weight || null,
+      moisture || null, duplex || null, plastic || null, pin || null,
+      raining_water || null, dust || null, millboard || null, extra || null,
       scrap_tax_birgunj || 0, scrap_tax_simra || 0, scrap_tax_hetauda || 0,
       other_expenses || 0, freight || 0
     ]);
@@ -280,9 +284,8 @@ router.put('/:id', async (req, res) => {
     unloading_date_ad, unloading_date_bs,
     gen, grn,
     source, vehicle_no, party_bill_no,
-    bill_weight, bill_rate,
-    our_weight,
-    moisture, rejection,
+    bill_weight, bill_rate, our_weight,
+    moisture, duplex, plastic, pin, raining_water, dust, millboard, extra,
     scrap_tax_birgunj, scrap_tax_simra, scrap_tax_hetauda,
     other_expenses, freight
   } = req.body;
@@ -293,20 +296,20 @@ router.put('/:id', async (req, res) => {
         unloading_date_ad = $1, unloading_date_bs = $2,
         gen = $3, grn = $4,
         source = $5, vehicle_no = $6, party_bill_no = $7,
-        bill_weight = $8, bill_rate = $9,
-        our_weight = $10,
-        moisture = $11, rejection = $12,
-        scrap_tax_birgunj = $13, scrap_tax_simra = $14, scrap_tax_hetauda = $15,
-        other_expenses = $16, freight = $17
-      WHERE id = $18
+        bill_weight = $8, bill_rate = $9, our_weight = $10,
+        moisture = $11, duplex = $12, plastic = $13, pin = $14,
+        raining_water = $15, dust = $16, millboard = $17, extra = $18,
+        scrap_tax_birgunj = $19, scrap_tax_simra = $20, scrap_tax_hetauda = $21,
+        other_expenses = $22, freight = $23
+      WHERE id = $24
       RETURNING *
     `, [
       unloading_date_ad, unloading_date_bs,
       gen || null, grn || null,
       source, vehicle_no || null, party_bill_no || null,
-      bill_weight || null, bill_rate || null,
-      our_weight || null,
-      moisture || null, rejection || null,
+      bill_weight || null, bill_rate || null, our_weight || null,
+      moisture || null, duplex || null, plastic || null, pin || null,
+      raining_water || null, dust || null, millboard || null, extra || null,
       scrap_tax_birgunj || 0, scrap_tax_simra || 0, scrap_tax_hetauda || 0,
       other_expenses || 0, freight || 0,
       req.params.id
