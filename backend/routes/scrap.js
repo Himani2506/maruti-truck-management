@@ -2,9 +2,6 @@ const express = require("express");
 const router = express.Router();
 const { pool } = require("../db/setup");
 
-// ─── Reusable lab total expressions ───────────────────────────────────────
-// `rejection` stores the total rejection percentage; older rows may only have
-// the component breakdown, so keep a fallback for those cases.
 const TOTAL_REJECTION_SQL = `COALESCE(
   rejection,
   COALESCE(duplex,0) + COALESCE(plastic,0) + COALESCE(pin,0) +
@@ -19,30 +16,24 @@ const E_TOTAL_REJECTION_SQL = `COALESCE(
   COALESCE(e.extra,0)
 )`;
 
+// TOTAL_LAB_REPORT_SQL — now = moisture + rejection (no superseded here, that's handled in NET_PAYABLE)
 const TOTAL_LAB_REPORT_SQL = `COALESCE(moisture,0) + ${TOTAL_REJECTION_SQL}`;
 
 const E_TOTAL_LAB_REPORT_SQL = `COALESCE(e.moisture,0) + ${E_TOTAL_REJECTION_SQL}`;
 
+
 // ─── Helper: compute net_payable (JS, used nowhere currently but kept) ──────
 function computeNetPayable({
-  bill_weight,
-  bill_rate,
-  our_weight,
-  moisture,
-  duplex,
-  plastic,
-  pin,
-  raining_water,
-  dust,
-  millboard,
-  extra,
-  superseded_rate,
-  superseded_rejection,
+  bill_weight, bill_rate, our_weight,
+  moisture, duplex, plastic, pin,
+  raining_water, dust, millboard, extra,
+  superseded_rate, superseded_rejection,
 }) {
   const bw = parseFloat(bill_weight) || 0;
   const br = parseFloat(bill_rate) || 0;
-  const ow = parseFloat(our_weight) || 0;
-  const labTotal =
+  const ow = parseFloat(our_weight) || bw;
+
+  const totalLabReport =
     (parseFloat(moisture) || 0) +
     (parseFloat(duplex) || 0) +
     (parseFloat(plastic) || 0) +
@@ -51,45 +42,37 @@ function computeNetPayable({
     (parseFloat(dust) || 0) +
     (parseFloat(millboard) || 0) +
     (parseFloat(extra) || 0);
-  const sr = superseded_rate != null ? parseFloat(superseded_rate) : null;
-  const srej =
-    superseded_rejection != null ? parseFloat(superseded_rejection) : null;
 
-  const shortage = bw - ow;
+  const effectiveRate = superseded_rate != null ? parseFloat(superseded_rate) : br;
+  const effectiveLab = superseded_rejection != null ? parseFloat(superseded_rejection) : totalLabReport;
+
   const vat = bw * br * 0.13;
-  const effectiveRate = sr !== null ? sr : br;
-  const effectiveLab = srej !== null ? srej : labTotal;
-  const labDeduction = (bw * effectiveRate * effectiveLab) / 100;
-  const netPayable = (bw - shortage) * effectiveRate + vat - labDeduction;
+  const labDeduction = bw * effectiveRate * effectiveLab / 100;
+  const netPayable = (bw - ow) * effectiveRate + vat - labDeduction;
+
   return parseFloat(netPayable.toFixed(2));
 }
 
 // ─── NET PAYABLE SQL block (no table prefix) ────────────────────────────────
+c// ─── NET PAYABLE SQL block (no table prefix) ────────────────────────────────
 const NET_PAYABLE_SQL = `
-  CASE
-    WHEN superseded_rate IS NOT NULL OR superseded_rejection IS NOT NULL THEN
-      (bill_weight - shortage) * COALESCE(superseded_rate, bill_rate)
-      + (bill_weight * bill_rate * 0.13)
-      - (bill_weight * bill_rate * COALESCE(superseded_rejection, ${TOTAL_LAB_REPORT_SQL}) / 100)
-    ELSE
-      (bill_weight - shortage) * bill_rate
-      + (bill_weight * bill_rate * 0.13)
-      - (bill_weight * bill_rate * ${TOTAL_LAB_REPORT_SQL} / 100)
-  END
+  (bill_weight - COALESCE(our_weight, bill_weight))
+  * COALESCE(superseded_rate, bill_rate)
+  + (bill_weight * bill_rate * 0.13)
+  - (bill_weight
+     * COALESCE(superseded_rate, bill_rate)
+     * COALESCE(superseded_rejection, ${TOTAL_LAB_REPORT_SQL})
+     / 100)
 `;
 
-// ─── NET PAYABLE SQL block (e. prefix for JOINs) ────────────────────────────
 const E_NET_PAYABLE_SQL = `
-  CASE
-    WHEN e.superseded_rate IS NOT NULL OR e.superseded_rejection IS NOT NULL THEN
-      (e.bill_weight - e.shortage) * COALESCE(e.superseded_rate, e.bill_rate)
-      + (e.bill_weight * e.bill_rate * 0.13)
-      - (e.bill_weight * e.bill_rate * COALESCE(e.superseded_rejection, ${E_TOTAL_LAB_REPORT_SQL}) / 100)
-    ELSE
-      (e.bill_weight - e.shortage) * e.bill_rate
-      + (e.bill_weight * e.bill_rate * 0.13)
-      - (e.bill_weight * e.bill_rate * ${E_TOTAL_LAB_REPORT_SQL} / 100)
-  END
+  (e.bill_weight - COALESCE(e.our_weight, e.bill_weight))
+  * COALESCE(e.superseded_rate, e.bill_rate)
+  + (e.bill_weight * e.bill_rate * 0.13)
+  - (e.bill_weight
+     * COALESCE(e.superseded_rate, e.bill_rate)
+     * COALESCE(e.superseded_rejection, ${E_TOTAL_LAB_REPORT_SQL})
+     / 100)
 `;
 
 // ─── GET all entries (daily view) ──────────────────────────────────────────
@@ -119,8 +102,8 @@ router.get("/party-summary", async (req, res) => {
         e.source AS party_name,
         COALESCE(o.opening, 0) AS opening,
         SUM(${E_NET_PAYABLE_SQL}) AS purchase_8283,
-        SUM(e.bill_weight * e.bill_rate * ${E_TOTAL_LAB_REPORT_SQL} / 100) AS deduction,
-        SUM(e.shortage) AS weight_loss,
+        SUM(e.bill_weight * COALESCE(e.superseded_rate, e.bill_rate) * COALESCE(e.superseded_rejection, ${E_TOTAL_LAB_REPORT_SQL}) / 100) AS deduction,
+        SUM(e.bill_weight - COALESCE(e.our_weight, e.bill_weight)) AS weight_loss,
         SUM(CASE WHEN e.superseded_rate IS NOT NULL THEN e.superseded_rate - e.bill_rate ELSE 0 END) AS rate_diff,
         SUM(${E_TOTAL_REJECTION_SQL}) AS rejection_rate,
         SUM(COALESCE(e.superseded_rejection, 0)) AS superseded_rejection_rate
@@ -135,7 +118,6 @@ router.get("/party-summary", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 // ─── GET party sheet ────────────────────────────────────────────────────────
 router.get('/party-sheet/:partyName', async (req, res) => {
   try {

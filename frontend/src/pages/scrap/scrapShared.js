@@ -51,31 +51,30 @@ const fmtN = (n) =>
 function calcNetPayable(row) {
   const bw = parseFloat(row.bill_weight) || 0;
   const br = parseFloat(row.bill_rate) || 0;
-  const ow = parseFloat(row.our_weight) || 0;
-  const sr =
-    row.superseded_rate != null ? parseFloat(row.superseded_rate) : null;
-  const srej =
-    row.superseded_rejection != null
-      ? parseFloat(row.superseded_rejection)
-      : null;
+  const ow = parseFloat(row.our_weight) || bw;
+  const sr = row.superseded_rate != null ? parseFloat(row.superseded_rate) : null;
+  const srej = row.superseded_rejection != null ? parseFloat(row.superseded_rejection) : null;
+
   const totalLab =
     (parseFloat(row.moisture) || 0) +
-    (parseFloat(row.duplex) || 0) +
-    (parseFloat(row.plastic) || 0) +
-    (parseFloat(row.pin) || 0) +
-    (parseFloat(row.raining_water) || 0) +
-    (parseFloat(row.dust) || 0) +
-    (parseFloat(row.millboard) || 0) +
-    (parseFloat(row.extra) || 0);
+    (parseFloat(row.rejection) ||
+      ((parseFloat(row.duplex) || 0) +
+       (parseFloat(row.plastic) || 0) +
+       (parseFloat(row.pin) || 0) +
+       (parseFloat(row.raining_water) || 0) +
+       (parseFloat(row.dust) || 0) +
+       (parseFloat(row.millboard) || 0) +
+       (parseFloat(row.extra) || 0)));
 
-  const shortage = bw - ow;
-  const vat = bw * br * 0.13;
   const effectiveRate = sr !== null ? sr : br;
-  const effectiveTotalLab = srej !== null ? srej : totalLab;
-  const labDeductionRupees = (bw * br * effectiveTotalLab) / 100;
-  return (bw - shortage) * effectiveRate + vat - labDeductionRupees;
-}
+  const effectiveLab  = srej !== null ? srej : totalLab;
 
+  const vat          = bw * br * 0.13;
+  const labDeduction = bw * effectiveRate * effectiveLab / 100;  // ← effectiveRate not br
+  const netPayable   = (bw - ow) * effectiveRate + vat - labDeduction;  // ← (bw - ow) not (bw - shortage)
+
+  return parseFloat(netPayable.toFixed(2));
+}
 export const LAB_FIELDS = [
   { key: "duplex", label: "Duplex (%)" },
   { key: "plastic", label: "Plastic (%)" },
