@@ -227,6 +227,52 @@ router.post("/parties", async (req, res) => {
   }
 });
 
+// ─── GET cleared accounts ───────────────────────────────────────────────────
+router.get('/cleared', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM scrap_cleared_accounts ORDER BY cleared_date DESC'
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST clear a party account ─────────────────────────────────────────────
+router.post('/clear-party', async (req, res) => {
+  const { party_name, cleared_amount, note, entry_ids } = req.body;
+  if (!party_name) return res.status(400).json({ error: 'party_name is required' });
+  try {
+    const result = await pool.query(
+      `INSERT INTO scrap_cleared_accounts (party_name, cleared_amount, note, entry_ids)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [party_name, cleared_amount || 0, note || null, entry_ids || []]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST unclear a party account ───────────────────────────────────────────
+router.post('/unclear-party', async (req, res) => {
+  const { cleared_id } = req.body;
+  try {
+    await pool.query('DELETE FROM scrap_cleared_accounts WHERE id = $1', [cleared_id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST tally data (persist xlsx upload) ──────────────────────────────────
+router.post('/tally', async (req, res) => {
+  // req.body is a map of { partyName: { opening, debit, credit, closing } }
+  // Store in memory/session or a tally table — for now just acknowledge
+  res.json({ success: true, received: Object.keys(req.body).length });
+});
+
 // ─── GET single entry ───────────────────────────────────────────────────────
 router.get("/:id", async (req, res) => {
   try {

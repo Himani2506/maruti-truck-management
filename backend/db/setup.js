@@ -5,10 +5,7 @@ require('dotenv').config();
 
 const pool = new Pool(
   process.env.DATABASE_URL
-    ? {
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-      }
+    ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
     : {
         host:     process.env.DB_HOST,
         port:     parseInt(process.env.DB_PORT),
@@ -18,18 +15,38 @@ const pool = new Pool(
       }
 );
 
-// Run schema + seed on first setup
+const SCHEMAS = [
+  'schema.sql',
+  'scrap_migration.sql',
+  'scrap_party_opening_migration.sql',
+  'alerts_migration.sql',
+];
+
+const SEEDS = [
+  'seed.sql',
+  'scrap_parties_seed.sql',
+];
+
+async function runFile(client, filename) {
+  const filepath = path.join(__dirname, filename);
+  if (!fs.existsSync(filepath)) {
+    console.warn(`  SKIP ${filename} (not found)`);
+    return;
+  }
+  const sql = fs.readFileSync(filepath, 'utf8');
+  await client.query(sql);
+  console.log(`  OK   ${filename}`);
+}
+
 async function setupDatabase() {
   const client = await pool.connect();
   try {
-    console.log('Running schema...');
-    const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-    await client.query(schema);
-    console.log('Schema OK');
-    console.log('Running seed...');
-    const seed = fs.readFileSync(path.join(__dirname, 'seed.sql'), 'utf8');
-    await client.query(seed);
-    console.log('Seed OK');
+    console.log('Running schemas...');
+    for (const file of SCHEMAS) await runFile(client, file);
+
+    console.log('Running seeds...');
+    for (const file of SEEDS) await runFile(client, file);
+
     console.log('Database ready.');
   } catch (err) {
     console.error('DB setup error:', err.message);

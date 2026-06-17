@@ -73,3 +73,12 @@ ALTER TABLE scrap_entries ADD COLUMN IF NOT EXISTS raining_water NUMERIC(8,4);
 ALTER TABLE scrap_entries ADD COLUMN IF NOT EXISTS dust NUMERIC(8,4);
 ALTER TABLE scrap_entries ADD COLUMN IF NOT EXISTS millboard NUMERIC(8,4);
 ALTER TABLE scrap_entries ADD COLUMN IF NOT EXISTS extra NUMERIC(8,4);
+
+CREATE TABLE IF NOT EXISTS scrap_cleared_accounts (
+  id SERIAL PRIMARY KEY,
+  party_name VARCHAR(255) NOT NULL,
+  cleared_amount NUMERIC(14,2),
+  note TEXT,
+  cleared_date TIMESTAMP DEFAULT NOW(),
+  entry_ids INTEGER[]
+);
