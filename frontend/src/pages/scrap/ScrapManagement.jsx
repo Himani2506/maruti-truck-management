@@ -4,16 +4,19 @@ import ScrapDailyView from './ScrapDailyView';
 import ScrapPartyView from './ScrapPartyView';
 import ScrapAccountCleared from './ScrapAccountCleared';
 import ScrapAnalysis from "./ScrapAnalysis";
-
+import { useAuth } from "../../context/AuthContext";
 export default function ScrapManagement() {
+  const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState("form");
 
   const tabs = [
     { key: "form",     label: "✏️ New Entry" },
     { key: "daily",    label: "📋 Daily View" },
-    { key: "party",    label: "🏢 Party View" },
-    { key: "cleared",  label: "✅ Account Cleared" },
-    { key: "analysis", label: "📊 Analysis" },
+    ...(isAdmin ? [
+      { key: "party",    label: "🏢 Party View" },
+      { key: "cleared",  label: "✅ Account Cleared" },
+      { key: "analysis", label: "📊 Analysis" },
+    ] : []),
   ];
 
   return (
@@ -38,11 +41,16 @@ export default function ScrapManagement() {
       </div>
 
       {/* All tabs rendered, only active one visible */}
-      <div style={{ display: activeTab === "form"     ? "block" : "none" }}><ScrapEntryForm /></div>
-      <div style={{ display: activeTab === "daily"    ? "block" : "none" }}><ScrapDailyView /></div>
-      <div style={{ display: activeTab === "party"    ? "block" : "none" }}><ScrapPartyView /></div>
-      <div style={{ display: activeTab === "cleared"  ? "block" : "none" }}><ScrapAccountCleared /></div>
-      <div style={{ display: activeTab === "analysis" ? "block" : "none" }}><ScrapAnalysis /></div>
+<div style={{ display: activeTab === "form"  ? "block" : "none" }}><ScrapEntryForm /></div>
+<div style={{ display: activeTab === "daily" ? "block" : "none" }}><ScrapDailyView /></div>
+
+{isAdmin && (
+  <>
+    <div style={{ display: activeTab === "party"    ? "block" : "none" }}><ScrapPartyView /></div>
+    <div style={{ display: activeTab === "cleared"  ? "block" : "none" }}><ScrapAccountCleared /></div>
+    <div style={{ display: activeTab === "analysis" ? "block" : "none" }}><ScrapAnalysis /></div>
+  </>
+)}
     </div>
   );
 }

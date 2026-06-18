@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 const navLinks = [
   { to: "/", label: "Overview", adminOnly: false },
   { to: "/trucks", label: "Truck Management", adminOnly: false },
-  { to: "/scrap", label: "Scrap Management", adminOnly: true },
+  { to: "/scrap", label: "Scrap Management", adminOnly: false  },
   { to: "/diesel", label: "Diesel Inventory", adminOnly: true },
   { to: "/dashboard", label: "Dashboard", adminOnly: true },
   { to: "/drivers", label: "Driver Advances", adminOnly: true },
